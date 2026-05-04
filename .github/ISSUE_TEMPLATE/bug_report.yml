@@ -1,0 +1,45 @@
+name: Bug report
+description: Report something that is not working as expected.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report this.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect Swiftea to do?
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "26.0"
+    validations:
+      required: true
+
+  - type: input
+    id: mug
+    attributes:
+      label: Mug model
+      placeholder: "Ember Mug 2, 14 oz"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Add screenshots, logs, or extra context if useful. Avoid sharing information you consider private.

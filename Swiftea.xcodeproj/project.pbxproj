@@ -1,0 +1,739 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00B10173F4F59B7BAD927E31 /* EmberMugBluetoothCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25992ADE6929FC269F0EC3F6 /* EmberMugBluetoothCoordinator.swift */; };
+		02A4BDA7B4F8DD5C8795BD64 /* LicenseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 869CEFEAD6B2E1197E828980 /* LicenseView.swift */; };
+		056095DFE5198003F3033ACB /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F61ADAB7E4A1DFE803CC70 /* AppDelegate.swift */; };
+		058253595BEA34000244DD92 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D02F4AE374ABA1F9AED27E2F /* AppLog.swift */; };
+		0598DC6F66E1121F873EC729 /* PublishedChangelog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D5DB09174E9FE4665713BE7 /* PublishedChangelog.swift */; };
+		07BD094878979B898C2C8C2A /* MugSidebarRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C2B2E5A75ECF67C214BC3C /* MugSidebarRow.swift */; };
+		0880D3DBAD80F3B984BF6D29 /* EmberMugBluetoothCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0C935071DB798B00C18C8D /* EmberMugBluetoothCoordinatorTests.swift */; };
+		08F3DE06BF72EE6CC385A934 /* SystemSettingsNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C25B0D1CDE8386ACAD0B7E96 /* SystemSettingsNavigator.swift */; };
+		09B93B6627B058F3FFC1F395 /* ConnectionStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 077696BD690C605A0BE9037B /* ConnectionStatusCard.swift */; };
+		0A94AF07D982CE581C6FAA80 /* SwifteaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4750D622E021B932FE77EAF1 /* SwifteaApp.swift */; };
+		0E656F6DDE66CF8A30A265AC /* TemperatureControlsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20DCA3F7E65FABCD4017708 /* TemperatureControlsCard.swift */; };
+		1F11A6CF6060BE474BE45D1E /* MugSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B476C5771DF7B6E0D075044 /* MugSidebarView.swift */; };
+		1FB82C97333E81E22A539FB3 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD5236D23851A6BF8405EBF /* AppVersion.swift */; };
+		270EA76BBA1CA7BDB851478A /* TargetTemperatureNotificationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DF9115A2D236FCF36EC34D /* TargetTemperatureNotificationCenter.swift */; };
+		3B73F1914D3E250FD5E95C03 /* MugHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB0CD02009C832E90B01A11 /* MugHistoryStore.swift */; };
+		40310DBD1AA9AFD74F89F5BC /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52402C68C3AD4ADC4410BD0B /* AppModelTests.swift */; };
+		43400C6CC2E7AD65D151EB4E /* TemperatureSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A938D0D3258F66189B6632 /* TemperatureSummaryCard.swift */; };
+		4559E8DC2850CD2908690C12 /* UpdateChangelogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D875F3A8477E806C33A4BAA1 /* UpdateChangelogView.swift */; };
+		4BC1F5049BB89B8E45D8F887 /* Sparkle-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 59F2AD47BF6AEA11AEB6C96B /* Sparkle-LICENSE.txt */; };
+		5935A71550BF9DF19668B8B4 /* SaveMugNameSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644E690FF8EFCCA9A509A3D0 /* SaveMugNameSheet.swift */; };
+		5E34305E8FBEDC38CFC03A3B /* HistoryChartCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EE2198A471937E004216E2 /* HistoryChartCard.swift */; };
+		6104687DB4690CFA2F592860 /* AppPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F0DA13EACB1D56087EB7E7 /* AppPreferencesStore.swift */; };
+		7B22C512A7CE8EA285B1A71F /* BluetoothRuntimeSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0526E3D62E202968FF3D4D /* BluetoothRuntimeSnapshot.swift */; };
+		7B5F25C0DD9283E8FBF3D333 /* MugDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC149A0137ABB57AAAC9DBEA /* MugDashboardView.swift */; };
+		7B9EAD44A8B653107B8970BC /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = BB380FDAEF9258D2F3620354 /* CHANGELOG.md */; };
+		7E91E4BA8F7FEFBCC7AE451D /* DiscoveredMugsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D24301D686C3001D3A4E3AA /* DiscoveredMugsCard.swift */; };
+		834A9A4120D5E45CB762627F /* AcknowledgementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A36278154418F5ACC20F1AE /* AcknowledgementsView.swift */; };
+		8C5DC5A7E9A0585920DEA0D8 /* UnavailableCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48343CF419C4E10151B9D985 /* UnavailableCard.swift */; };
+		92350A2D0184D4F56D81A217 /* EmberGATT.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25D665837334B2C288227CE7 /* EmberGATT.swift */; };
+		96BFB34188A10D9D40CCDBAC /* ContentsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABE09B6D7E672D6BE7C900D /* ContentsCard.swift */; };
+		97225EF5FEB6D6AD97026AF4 /* DiscoveryWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128C06D16ED396FE73B70648 /* DiscoveryWindowView.swift */; };
+		986BFC09CC57129D25BF9F70 /* AnimatedStatusSymbol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2622EBA8CB9CC623740DE5AF /* AnimatedStatusSymbol.swift */; };
+		999E12B183D1CF0A6F4BD063 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5231C1ECFA3CB14942F376 /* AppModel.swift */; };
+		9DED2BEB766120C3087F702E /* StateDetailRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3394D3DCA638646C31D9B5E2 /* StateDetailRow.swift */; };
+		A5713CF39750BAE4C52DA2A9 /* HeatingToggleSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C742E6895F7D760FFC4F6BC3 /* HeatingToggleSoundPlayer.swift */; };
+		AA7E81CC6332092360D356C3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8FA1A7C8CF1D0DC159F0421A /* Sparkle */; };
+		B3D7A90AFE6B3AC1302F7B4E /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B4D53B625028C855A71552E2 /* AppIcon.icon */; };
+		BB0CCBB0EFC0CB0DBB76726F /* HeatingControlCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4010EA7B7C57461F94AAD348 /* HeatingControlCard.swift */; };
+		C482A6CB3EB1925BF669DA75 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA03BC292BE22BE9E2014FF6 /* UpdateController.swift */; };
+		C584EF711F0E7184AB8189CE /* MugHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575658B9CAD92AE29B02624F /* MugHistory.swift */; };
+		CD51FB9CDE0693072FF85FDB /* BatteryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA99E763E4905AA4BF950E4 /* BatteryCard.swift */; };
+		CFB69DC8CFB7196A45481015 /* EmberAdvertisementParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03674EF6599382D7A89DA085 /* EmberAdvertisementParser.swift */; };
+		E024E079CE4FF68098DB0A9B /* MugPeripheralSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B75EBC44CE722C2160D2A8C7 /* MugPeripheralSession.swift */; };
+		EA8D679A321A00605377BABE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71FC48932FB0DFF6D10BB640 /* SettingsView.swift */; };
+		F106E34767249D72A95B0813 /* SessionDiagnosticsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F5710DC0DC39CF46D0C63F2 /* SessionDiagnosticsCard.swift */; };
+		F6037828A6430599671ED943 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C465DB9880842C931870E6 /* ContentView.swift */; };
+		F64F8B8E9D2D4E42E4D9CB2E /* AppAppearanceSynchronizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BBE33DF477B5B46A23D49C /* AppAppearanceSynchronizer.swift */; };
+		FA5BEFADDCE18C979B42706D /* EmberAdvertisementParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1535E4639C402C8DD6EFBC /* EmberAdvertisementParserTests.swift */; };
+		FF91A7590762089AB441ED1D /* IdleSleepPreventionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CC387A5A6A8B6B660052CF /* IdleSleepPreventionManager.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A5C5E3456EEE71BB0643D678 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C7524568B12188DF312B36E0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8F3AC5234546A8A0265DE393;
+			remoteInfo = Swiftea;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		03674EF6599382D7A89DA085 /* EmberAdvertisementParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberAdvertisementParser.swift; sourceTree = "<group>"; };
+		077696BD690C605A0BE9037B /* ConnectionStatusCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusCard.swift; sourceTree = "<group>"; };
+		0CA99E763E4905AA4BF950E4 /* BatteryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryCard.swift; sourceTree = "<group>"; };
+		0D24301D686C3001D3A4E3AA /* DiscoveredMugsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveredMugsCard.swift; sourceTree = "<group>"; };
+		128C06D16ED396FE73B70648 /* DiscoveryWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryWindowView.swift; sourceTree = "<group>"; };
+		13C2B2E5A75ECF67C214BC3C /* MugSidebarRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MugSidebarRow.swift; sourceTree = "<group>"; };
+		25992ADE6929FC269F0EC3F6 /* EmberMugBluetoothCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberMugBluetoothCoordinator.swift; sourceTree = "<group>"; };
+		25D665837334B2C288227CE7 /* EmberGATT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberGATT.swift; sourceTree = "<group>"; };
+		2622EBA8CB9CC623740DE5AF /* AnimatedStatusSymbol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedStatusSymbol.swift; sourceTree = "<group>"; };
+		3394D3DCA638646C31D9B5E2 /* StateDetailRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateDetailRow.swift; sourceTree = "<group>"; };
+		3F5710DC0DC39CF46D0C63F2 /* SessionDiagnosticsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDiagnosticsCard.swift; sourceTree = "<group>"; };
+		4010EA7B7C57461F94AAD348 /* HeatingControlCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatingControlCard.swift; sourceTree = "<group>"; };
+		42F61ADAB7E4A1DFE803CC70 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		4750D622E021B932FE77EAF1 /* SwifteaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwifteaApp.swift; sourceTree = "<group>"; };
+		48343CF419C4E10151B9D985 /* UnavailableCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnavailableCard.swift; sourceTree = "<group>"; };
+		52402C68C3AD4ADC4410BD0B /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelTests.swift; sourceTree = "<group>"; };
+		575658B9CAD92AE29B02624F /* MugHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MugHistory.swift; sourceTree = "<group>"; };
+		59F2AD47BF6AEA11AEB6C96B /* Sparkle-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Sparkle-LICENSE.txt"; sourceTree = "<group>"; };
+		5B476C5771DF7B6E0D075044 /* MugSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MugSidebarView.swift; sourceTree = "<group>"; };
+		5BB0CD02009C832E90B01A11 /* MugHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MugHistoryStore.swift; sourceTree = "<group>"; };
+		644E690FF8EFCCA9A509A3D0 /* SaveMugNameSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveMugNameSheet.swift; sourceTree = "<group>"; };
+		66312C292A3736D2A3A1A112 /* SwifteaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwifteaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		71FC48932FB0DFF6D10BB640 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		7D5DB09174E9FE4665713BE7 /* PublishedChangelog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedChangelog.swift; sourceTree = "<group>"; };
+		84DF9115A2D236FCF36EC34D /* TargetTemperatureNotificationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetTemperatureNotificationCenter.swift; sourceTree = "<group>"; };
+		869CEFEAD6B2E1197E828980 /* LicenseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseView.swift; sourceTree = "<group>"; };
+		9A0C935071DB798B00C18C8D /* EmberMugBluetoothCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberMugBluetoothCoordinatorTests.swift; sourceTree = "<group>"; };
+		9A36278154418F5ACC20F1AE /* AcknowledgementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcknowledgementsView.swift; sourceTree = "<group>"; };
+		A3C465DB9880842C931870E6 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		AABE09B6D7E672D6BE7C900D /* ContentsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentsCard.swift; sourceTree = "<group>"; };
+		AC149A0137ABB57AAAC9DBEA /* MugDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MugDashboardView.swift; sourceTree = "<group>"; };
+		B0BBE33DF477B5B46A23D49C /* AppAppearanceSynchronizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAppearanceSynchronizer.swift; sourceTree = "<group>"; };
+		B4D53B625028C855A71552E2 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		B75EBC44CE722C2160D2A8C7 /* MugPeripheralSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MugPeripheralSession.swift; sourceTree = "<group>"; };
+		BA03BC292BE22BE9E2014FF6 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
+		BB380FDAEF9258D2F3620354 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
+		BC5231C1ECFA3CB14942F376 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		C25B0D1CDE8386ACAD0B7E96 /* SystemSettingsNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSettingsNavigator.swift; sourceTree = "<group>"; };
+		C742E6895F7D760FFC4F6BC3 /* HeatingToggleSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatingToggleSoundPlayer.swift; sourceTree = "<group>"; };
+		C9F0DA13EACB1D56087EB7E7 /* AppPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesStore.swift; sourceTree = "<group>"; };
+		D02F4AE374ABA1F9AED27E2F /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
+		D875F3A8477E806C33A4BAA1 /* UpdateChangelogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChangelogView.swift; sourceTree = "<group>"; };
+		DB0526E3D62E202968FF3D4D /* BluetoothRuntimeSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothRuntimeSnapshot.swift; sourceTree = "<group>"; };
+		E2EE2198A471937E004216E2 /* HistoryChartCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryChartCard.swift; sourceTree = "<group>"; };
+		E34FBB66308F04CE975AF0D6 /* Swiftea.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Swiftea.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E3A938D0D3258F66189B6632 /* TemperatureSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemperatureSummaryCard.swift; sourceTree = "<group>"; };
+		EBD5236D23851A6BF8405EBF /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
+		F1CC387A5A6A8B6B660052CF /* IdleSleepPreventionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleSleepPreventionManager.swift; sourceTree = "<group>"; };
+		F20DCA3F7E65FABCD4017708 /* TemperatureControlsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemperatureControlsCard.swift; sourceTree = "<group>"; };
+		FF1535E4639C402C8DD6EFBC /* EmberAdvertisementParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmberAdvertisementParserTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		75E2CA3F8D545D66A8EAB453 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA7E81CC6332092360D356C3 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		19D56D32800E644BCF11C201 /* SwifteaTests */ = {
+			isa = PBXGroup;
+			children = (
+				52402C68C3AD4ADC4410BD0B /* AppModelTests.swift */,
+				FF1535E4639C402C8DD6EFBC /* EmberAdvertisementParserTests.swift */,
+				9A0C935071DB798B00C18C8D /* EmberMugBluetoothCoordinatorTests.swift */,
+			);
+			path = SwifteaTests;
+			sourceTree = "<group>";
+		};
+		290AC9E01034590859AC0115 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D276B1329100E7E516D9563B /* Swiftea */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		3ADFF69559369A63F3F9C99D /* ThirdPartyNotices */ = {
+			isa = PBXGroup;
+			children = (
+				59F2AD47BF6AEA11AEB6C96B /* Sparkle-LICENSE.txt */,
+			);
+			path = ThirdPartyNotices;
+			sourceTree = "<group>";
+		};
+		426AA7FBEB1E44B9E20E1637 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B0BBE33DF477B5B46A23D49C /* AppAppearanceSynchronizer.swift */,
+				42F61ADAB7E4A1DFE803CC70 /* AppDelegate.swift */,
+				4750D622E021B932FE77EAF1 /* SwifteaApp.swift */,
+				BA03BC292BE22BE9E2014FF6 /* UpdateController.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		43AD847D1ACAF2DE695213F5 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B4D53B625028C855A71552E2 /* AppIcon.icon */,
+				3ADFF69559369A63F3F9C99D /* ThirdPartyNotices */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5DC6DEEB3E5FD71E1FC84D07 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				19D56D32800E644BCF11C201 /* SwifteaTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		5F5FC8C5BF754A6A7F616616 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				84DF9115A2D236FCF36EC34D /* TargetTemperatureNotificationCenter.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		6AE75E95B1D2F06EAF2AB065 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BC5231C1ECFA3CB14942F376 /* AppModel.swift */,
+				575658B9CAD92AE29B02624F /* MugHistory.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		7791E03816C4CCA8A8222AE1 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				D02F4AE374ABA1F9AED27E2F /* AppLog.swift */,
+				EBD5236D23851A6BF8405EBF /* AppVersion.swift */,
+				C742E6895F7D760FFC4F6BC3 /* HeatingToggleSoundPlayer.swift */,
+				F1CC387A5A6A8B6B660052CF /* IdleSleepPreventionManager.swift */,
+				7D5DB09174E9FE4665713BE7 /* PublishedChangelog.swift */,
+				C25B0D1CDE8386ACAD0B7E96 /* SystemSettingsNavigator.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		91C74FB1C3D67AFE909F3AFB /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9A36278154418F5ACC20F1AE /* AcknowledgementsView.swift */,
+				2622EBA8CB9CC623740DE5AF /* AnimatedStatusSymbol.swift */,
+				0CA99E763E4905AA4BF950E4 /* BatteryCard.swift */,
+				077696BD690C605A0BE9037B /* ConnectionStatusCard.swift */,
+				AABE09B6D7E672D6BE7C900D /* ContentsCard.swift */,
+				A3C465DB9880842C931870E6 /* ContentView.swift */,
+				0D24301D686C3001D3A4E3AA /* DiscoveredMugsCard.swift */,
+				128C06D16ED396FE73B70648 /* DiscoveryWindowView.swift */,
+				4010EA7B7C57461F94AAD348 /* HeatingControlCard.swift */,
+				E2EE2198A471937E004216E2 /* HistoryChartCard.swift */,
+				869CEFEAD6B2E1197E828980 /* LicenseView.swift */,
+				AC149A0137ABB57AAAC9DBEA /* MugDashboardView.swift */,
+				13C2B2E5A75ECF67C214BC3C /* MugSidebarRow.swift */,
+				5B476C5771DF7B6E0D075044 /* MugSidebarView.swift */,
+				644E690FF8EFCCA9A509A3D0 /* SaveMugNameSheet.swift */,
+				3F5710DC0DC39CF46D0C63F2 /* SessionDiagnosticsCard.swift */,
+				71FC48932FB0DFF6D10BB640 /* SettingsView.swift */,
+				3394D3DCA638646C31D9B5E2 /* StateDetailRow.swift */,
+				F20DCA3F7E65FABCD4017708 /* TemperatureControlsCard.swift */,
+				E3A938D0D3258F66189B6632 /* TemperatureSummaryCard.swift */,
+				48343CF419C4E10151B9D985 /* UnavailableCard.swift */,
+				D875F3A8477E806C33A4BAA1 /* UpdateChangelogView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		96CBF72749C52D51161EC2BF /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				C9F0DA13EACB1D56087EB7E7 /* AppPreferencesStore.swift */,
+				5BB0CD02009C832E90B01A11 /* MugHistoryStore.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		991083FD36E5C7B030590312 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E34FBB66308F04CE975AF0D6 /* Swiftea.app */,
+				66312C292A3736D2A3A1A112 /* SwifteaTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A019E03A6425EF97EC9E90B2 /* Bluetooth */ = {
+			isa = PBXGroup;
+			children = (
+				DB0526E3D62E202968FF3D4D /* BluetoothRuntimeSnapshot.swift */,
+				03674EF6599382D7A89DA085 /* EmberAdvertisementParser.swift */,
+				25D665837334B2C288227CE7 /* EmberGATT.swift */,
+				25992ADE6929FC269F0EC3F6 /* EmberMugBluetoothCoordinator.swift */,
+				B75EBC44CE722C2160D2A8C7 /* MugPeripheralSession.swift */,
+			);
+			path = Bluetooth;
+			sourceTree = "<group>";
+		};
+		D276B1329100E7E516D9563B /* Swiftea */ = {
+			isa = PBXGroup;
+			children = (
+				426AA7FBEB1E44B9E20E1637 /* App */,
+				A019E03A6425EF97EC9E90B2 /* Bluetooth */,
+				6AE75E95B1D2F06EAF2AB065 /* Models */,
+				5F5FC8C5BF754A6A7F616616 /* Notifications */,
+				96CBF72749C52D51161EC2BF /* Persistence */,
+				7791E03816C4CCA8A8222AE1 /* Support */,
+				91C74FB1C3D67AFE909F3AFB /* Views */,
+			);
+			path = Swiftea;
+			sourceTree = "<group>";
+		};
+		F4C648D342E7CEC8F8A77CC2 = {
+			isa = PBXGroup;
+			children = (
+				BB380FDAEF9258D2F3620354 /* CHANGELOG.md */,
+				43AD847D1ACAF2DE695213F5 /* Resources */,
+				290AC9E01034590859AC0115 /* Sources */,
+				5DC6DEEB3E5FD71E1FC84D07 /* Tests */,
+				991083FD36E5C7B030590312 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6C68B23E72180FFCC0765D45 /* SwifteaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6F9DDD758B6A8785A787AC29 /* Build configuration list for PBXNativeTarget "SwifteaTests" */;
+			buildPhases = (
+				864669BFF4205445525F03F1 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B3D2970C96F87666E0562A83 /* PBXTargetDependency */,
+			);
+			name = SwifteaTests;
+			packageProductDependencies = (
+			);
+			productName = SwifteaTests;
+			productReference = 66312C292A3736D2A3A1A112 /* SwifteaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8F3AC5234546A8A0265DE393 /* Swiftea */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 90E85D01E71A005B3C1E4746 /* Build configuration list for PBXNativeTarget "Swiftea" */;
+			buildPhases = (
+				EF8316AFE24DC8F7E8F8B582 /* Sources */,
+				28C642D395DE69923DFF0067 /* Resources */,
+				75E2CA3F8D545D66A8EAB453 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Swiftea;
+			packageProductDependencies = (
+				8FA1A7C8CF1D0DC159F0421A /* Sparkle */,
+			);
+			productName = Swiftea;
+			productReference = E34FBB66308F04CE975AF0D6 /* Swiftea.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C7524568B12188DF312B36E0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 4B3523E7D3CA9AB74BD1AB1C /* Build configuration list for PBXProject "Swiftea" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F4C648D342E7CEC8F8A77CC2;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				651F45D0770C5E3C8069B1D0 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 991083FD36E5C7B030590312 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8F3AC5234546A8A0265DE393 /* Swiftea */,
+				6C68B23E72180FFCC0765D45 /* SwifteaTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		28C642D395DE69923DFF0067 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3D7A90AFE6B3AC1302F7B4E /* AppIcon.icon in Resources */,
+				7B9EAD44A8B653107B8970BC /* CHANGELOG.md in Resources */,
+				4BC1F5049BB89B8E45D8F887 /* Sparkle-LICENSE.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		864669BFF4205445525F03F1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				40310DBD1AA9AFD74F89F5BC /* AppModelTests.swift in Sources */,
+				FA5BEFADDCE18C979B42706D /* EmberAdvertisementParserTests.swift in Sources */,
+				0880D3DBAD80F3B984BF6D29 /* EmberMugBluetoothCoordinatorTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EF8316AFE24DC8F7E8F8B582 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				834A9A4120D5E45CB762627F /* AcknowledgementsView.swift in Sources */,
+				986BFC09CC57129D25BF9F70 /* AnimatedStatusSymbol.swift in Sources */,
+				F64F8B8E9D2D4E42E4D9CB2E /* AppAppearanceSynchronizer.swift in Sources */,
+				056095DFE5198003F3033ACB /* AppDelegate.swift in Sources */,
+				058253595BEA34000244DD92 /* AppLog.swift in Sources */,
+				999E12B183D1CF0A6F4BD063 /* AppModel.swift in Sources */,
+				6104687DB4690CFA2F592860 /* AppPreferencesStore.swift in Sources */,
+				1FB82C97333E81E22A539FB3 /* AppVersion.swift in Sources */,
+				CD51FB9CDE0693072FF85FDB /* BatteryCard.swift in Sources */,
+				7B22C512A7CE8EA285B1A71F /* BluetoothRuntimeSnapshot.swift in Sources */,
+				09B93B6627B058F3FFC1F395 /* ConnectionStatusCard.swift in Sources */,
+				F6037828A6430599671ED943 /* ContentView.swift in Sources */,
+				96BFB34188A10D9D40CCDBAC /* ContentsCard.swift in Sources */,
+				7E91E4BA8F7FEFBCC7AE451D /* DiscoveredMugsCard.swift in Sources */,
+				97225EF5FEB6D6AD97026AF4 /* DiscoveryWindowView.swift in Sources */,
+				CFB69DC8CFB7196A45481015 /* EmberAdvertisementParser.swift in Sources */,
+				92350A2D0184D4F56D81A217 /* EmberGATT.swift in Sources */,
+				00B10173F4F59B7BAD927E31 /* EmberMugBluetoothCoordinator.swift in Sources */,
+				BB0CCBB0EFC0CB0DBB76726F /* HeatingControlCard.swift in Sources */,
+				A5713CF39750BAE4C52DA2A9 /* HeatingToggleSoundPlayer.swift in Sources */,
+				5E34305E8FBEDC38CFC03A3B /* HistoryChartCard.swift in Sources */,
+				FF91A7590762089AB441ED1D /* IdleSleepPreventionManager.swift in Sources */,
+				02A4BDA7B4F8DD5C8795BD64 /* LicenseView.swift in Sources */,
+				7B5F25C0DD9283E8FBF3D333 /* MugDashboardView.swift in Sources */,
+				C584EF711F0E7184AB8189CE /* MugHistory.swift in Sources */,
+				3B73F1914D3E250FD5E95C03 /* MugHistoryStore.swift in Sources */,
+				E024E079CE4FF68098DB0A9B /* MugPeripheralSession.swift in Sources */,
+				07BD094878979B898C2C8C2A /* MugSidebarRow.swift in Sources */,
+				1F11A6CF6060BE474BE45D1E /* MugSidebarView.swift in Sources */,
+				0598DC6F66E1121F873EC729 /* PublishedChangelog.swift in Sources */,
+				5935A71550BF9DF19668B8B4 /* SaveMugNameSheet.swift in Sources */,
+				F106E34767249D72A95B0813 /* SessionDiagnosticsCard.swift in Sources */,
+				EA8D679A321A00605377BABE /* SettingsView.swift in Sources */,
+				9DED2BEB766120C3087F702E /* StateDetailRow.swift in Sources */,
+				0A94AF07D982CE581C6FAA80 /* SwifteaApp.swift in Sources */,
+				08F3DE06BF72EE6CC385A934 /* SystemSettingsNavigator.swift in Sources */,
+				270EA76BBA1CA7BDB851478A /* TargetTemperatureNotificationCenter.swift in Sources */,
+				0E656F6DDE66CF8A30A265AC /* TemperatureControlsCard.swift in Sources */,
+				43400C6CC2E7AD65D151EB4E /* TemperatureSummaryCard.swift in Sources */,
+				8C5DC5A7E9A0585920DEA0D8 /* UnavailableCard.swift in Sources */,
+				4559E8DC2850CD2908690C12 /* UpdateChangelogView.swift in Sources */,
+				C482A6CB3EB1925BF669DA75 /* UpdateController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B3D2970C96F87666E0562A83 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8F3AC5234546A8A0265DE393 /* Swiftea */;
+			targetProxy = A5C5E3456EEE71BB0643D678 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		271B93A5BBF5399637050B03 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "";
+			};
+			name = Release;
+		};
+		73B80BB3A7D5CF0F0EBCEEC0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Swiftea;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Swiftea uses Bluetooth to find and control your Ember Mug 2.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Public domain via Zero-Clause BSD (0BSD) License";
+				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
+				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
+				INFOPLIST_KEY_SUFeedURL = "$(SWIFTEA_UPDATE_FEED_URL)";
+				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_PUBLIC_ED_KEY)";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tom.swiftea;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SPARKLE_PUBLIC_ED_KEY = "";
+				SWIFTEA_UPDATE_FEED_URL = "";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		9AFE4EBD2692839E1A991AD6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "";
+			};
+			name = Debug;
+		};
+		A871CBB947A849BA6246FEEF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tom.swiftea.tests;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Swiftea.app/Contents/MacOS/Swiftea";
+			};
+			name = Debug;
+		};
+		DB4E404538138620BA2B9F35 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tom.swiftea.tests;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Swiftea.app/Contents/MacOS/Swiftea";
+			};
+			name = Release;
+		};
+		EAB1BC45536EEF14F0B61BAD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Swiftea;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Swiftea uses Bluetooth to find and control your Ember Mug 2.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Public domain via Zero-Clause BSD (0BSD) License";
+				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
+				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
+				INFOPLIST_KEY_SUFeedURL = "$(SWIFTEA_UPDATE_FEED_URL)";
+				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_PUBLIC_ED_KEY)";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tom.swiftea;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SPARKLE_PUBLIC_ED_KEY = "";
+				SWIFTEA_UPDATE_FEED_URL = "";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4B3523E7D3CA9AB74BD1AB1C /* Build configuration list for PBXProject "Swiftea" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73B80BB3A7D5CF0F0EBCEEC0 /* Debug */,
+				EAB1BC45536EEF14F0B61BAD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6F9DDD758B6A8785A787AC29 /* Build configuration list for PBXNativeTarget "SwifteaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A871CBB947A849BA6246FEEF /* Debug */,
+				DB4E404538138620BA2B9F35 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		90E85D01E71A005B3C1E4746 /* Build configuration list for PBXNativeTarget "Swiftea" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9AFE4EBD2692839E1A991AD6 /* Debug */,
+				271B93A5BBF5399637050B03 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		651F45D0770C5E3C8069B1D0 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8FA1A7C8CF1D0DC159F0421A /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 651F45D0770C5E3C8069B1D0 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = C7524568B12188DF312B36E0 /* Project object */;
+}

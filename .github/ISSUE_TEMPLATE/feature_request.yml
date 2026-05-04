@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an improvement for Swiftea.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would this improve?
+      description: Describe the problem or workflow this feature would help with.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should Swiftea do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Any simpler options or tradeoffs worth considering?
