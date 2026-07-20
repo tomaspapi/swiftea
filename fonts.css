@@ -1,3 +1,24 @@
+/*
+ * Inter 4.1 by The Inter Project Authors.
+ * Licensed under the SIL Open Font License 1.1.
+ * See assets/fonts/Inter-LICENSE.txt.
+ */
+@font-face {
+  font-family: "Inter";
+  src: url("assets/fonts/InterVariable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("assets/fonts/InterVariable-Italic.woff2") format("woff2");
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "CommitMono";
   src: url("assets/fonts/CommitMono-VF.woff2") format("woff2");
