@@ -6,14 +6,14 @@ struct UpdateChangelogView: View {
     @State private var requiresScrolling = false
 
     private let version: String
-    private let releaseNotes: AttributedString
+    private let releaseNotes: [String]
 
     init(
         version: String = AppVersion.currentMarketingVersion(),
         markdown: String = PublishedChangelog.currentReleaseNotesMarkdown()
     ) {
         self.version = version
-        releaseNotes = (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+        releaseNotes = PublishedChangelog.releaseNoteItems(from: markdown)
     }
 
     var body: some View {
@@ -50,9 +50,17 @@ struct UpdateChangelogView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(releaseNotes)
-                .textSelection(.enabled)
-                .lineSpacing(4)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(releaseNotes.enumerated()), id: \.offset) { _, note in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("•")
+                            .accessibilityHidden(true)
+                        Text(note)
+                            .lineSpacing(4)
+                    }
+                }
+            }
+            .textSelection(.enabled)
         }
         .font(.body)
         .foregroundStyle(.primary)

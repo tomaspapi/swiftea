@@ -44,6 +44,7 @@
 		986BFC09CC57129D25BF9F70 /* AnimatedStatusSymbol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2622EBA8CB9CC623740DE5AF /* AnimatedStatusSymbol.swift */; };
 		999E12B183D1CF0A6F4BD063 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5231C1ECFA3CB14942F376 /* AppModel.swift */; };
 		9DED2BEB766120C3087F702E /* StateDetailRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3394D3DCA638646C31D9B5E2 /* StateDetailRow.swift */; };
+		9E509BE50FC5E15D81D609F5 /* PublishedChangelogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBD70FAC71682F1157EB5640 /* PublishedChangelogTests.swift */; };
 		A5713CF39750BAE4C52DA2A9 /* HeatingToggleSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C742E6895F7D760FFC4F6BC3 /* HeatingToggleSoundPlayer.swift */; };
 		A96A1D8AE6082D48BC9DC43B /* TemperatureSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32C33F6C67ACF929EF711263 /* TemperatureSegmentedControl.swift */; };
 		AA7E81CC6332092360D356C3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8FA1A7C8CF1D0DC159F0421A /* Sparkle */; };
@@ -127,6 +128,7 @@
 		D5F0AC4260F262078D306345 /* LegalDocumentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalDocumentView.swift; sourceTree = "<group>"; };
 		D875F3A8477E806C33A4BAA1 /* UpdateChangelogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChangelogView.swift; sourceTree = "<group>"; };
 		DB0526E3D62E202968FF3D4D /* BluetoothRuntimeSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothRuntimeSnapshot.swift; sourceTree = "<group>"; };
+		DBD70FAC71682F1157EB5640 /* PublishedChangelogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedChangelogTests.swift; sourceTree = "<group>"; };
 		E2EE2198A471937E004216E2 /* HistoryChartCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryChartCard.swift; sourceTree = "<group>"; };
 		E34FBB66308F04CE975AF0D6 /* Swiftea.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Swiftea.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E3A938D0D3258F66189B6632 /* TemperatureSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemperatureSummaryCard.swift; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 				52402C68C3AD4ADC4410BD0B /* AppModelTests.swift */,
 				FF1535E4639C402C8DD6EFBC /* EmberAdvertisementParserTests.swift */,
 				9A0C935071DB798B00C18C8D /* EmberMugBluetoothCoordinatorTests.swift */,
+				DBD70FAC71682F1157EB5640 /* PublishedChangelogTests.swift */,
 				6DF2DAC7D69B7AA0F7593610 /* UpdateControllerTests.swift */,
 			);
 			path = SwifteaTests;
@@ -421,6 +424,7 @@
 				40310DBD1AA9AFD74F89F5BC /* AppModelTests.swift in Sources */,
 				FA5BEFADDCE18C979B42706D /* EmberAdvertisementParserTests.swift in Sources */,
 				0880D3DBAD80F3B984BF6D29 /* EmberMugBluetoothCoordinatorTests.swift in Sources */,
+				9E509BE50FC5E15D81D609F5 /* PublishedChangelogTests.swift in Sources */,
 				22B744B33D564236AD5A876C /* UpdateControllerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -544,7 +548,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -568,6 +572,7 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Swiftea uses Bluetooth to find and control your Ember Mug 2.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Public domain via Zero-Clause BSD (0BSD) License";
 				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
+				INFOPLIST_KEY_SUAutomaticallyUpdate = NO;
 				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
 				INFOPLIST_KEY_SUFeedURL = "$(SWIFTEA_UPDATE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_PUBLIC_ED_KEY)";
@@ -575,7 +580,7 @@
 				INFOPLIST_KEY_SUSignedFeedFailureExpirationInterval = 0;
 				INFOPLIST_KEY_SUVerifyUpdateBeforeExtraction = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -682,7 +687,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -701,6 +706,7 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Swiftea uses Bluetooth to find and control your Ember Mug 2.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Public domain via Zero-Clause BSD (0BSD) License";
 				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
+				INFOPLIST_KEY_SUAutomaticallyUpdate = NO;
 				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
 				INFOPLIST_KEY_SUFeedURL = "$(SWIFTEA_UPDATE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_PUBLIC_ED_KEY)";
@@ -708,7 +714,7 @@
 				INFOPLIST_KEY_SUSignedFeedFailureExpirationInterval = 0;
 				INFOPLIST_KEY_SUVerifyUpdateBeforeExtraction = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tom.swiftea;

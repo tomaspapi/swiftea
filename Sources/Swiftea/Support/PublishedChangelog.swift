@@ -31,6 +31,41 @@ enum PublishedChangelog {
         return "- No published changelog is bundled with this build."
     }
 
+    static func releaseNoteItems(from markdown: String) -> [String] {
+        var items: [String] = []
+        var currentItem: String?
+
+        func finishCurrentItem() {
+            guard let item = currentItem?.trimmingCharacters(in: .whitespacesAndNewlines), !item.isEmpty else {
+                currentItem = nil
+                return
+            }
+
+            items.append(item)
+            currentItem = nil
+        }
+
+        for rawLine in markdown.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                finishCurrentItem()
+                currentItem = String(line.dropFirst(2))
+            } else if line.isEmpty {
+                finishCurrentItem()
+            } else if currentItem != nil {
+                currentItem = [currentItem, line]
+                    .compactMap { $0 }
+                    .joined(separator: " ")
+            } else {
+                currentItem = line
+            }
+        }
+
+        finishCurrentItem()
+        return items
+    }
+
     private static func releaseSection(in markdown: String, matching version: String) -> String? {
         sectionBodies(in: markdown).first { section in
             headingMatchesVersion(section.heading, version: version)

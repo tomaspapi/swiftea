@@ -5,12 +5,18 @@ import SwiftUI
 
 @MainActor
 final class UpdateController {
+    nonisolated static let sparkleAutomaticDownloadPreferenceKey = "SUAutomaticallyUpdate"
+
     private let bundle: Bundle
     private let updaterSettings: SPUUpdaterSettings
     private let updaterController: SPUStandardUpdaterController?
 
-    init(bundle: Bundle = .main) {
+    init(bundle: Bundle = .main, userDefaults: UserDefaults = .standard) {
         self.bundle = bundle
+
+        // Swiftea offers automatic checks, but updates must still be approved by the user.
+        // Clear the separate Sparkle preference that older builds allowed users to enable.
+        Self.disableAutomaticUpdateDownloads(in: userDefaults)
         updaterSettings = SPUUpdaterSettings(hostBundle: bundle)
 
         guard Self.hasRequiredSparkleConfiguration(in: bundle) else {
@@ -23,6 +29,10 @@ final class UpdateController {
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
+    }
+
+    nonisolated static func disableAutomaticUpdateDownloads(in userDefaults: UserDefaults) {
+        userDefaults.set(false, forKey: sparkleAutomaticDownloadPreferenceKey)
     }
 
     var updater: SPUUpdater? {

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.1 — 2026-07-19
+
+- Fixed an update preference migration that could let an older Swiftea installation install a new version without first showing the update prompt.
+- Fixed the post-update “What’s New” window so each release note is displayed as a separate bullet.
+
 ## 0.2.0 — 2026-07-19
 
 - Swiftea can now reconnect eligible saved mugs after connection loss, Mac wake, app activation, or Bluetooth recovery, while continuing to respect mugs you deliberately disconnected.

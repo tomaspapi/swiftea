@@ -3,6 +3,17 @@ import Testing
 @testable import Swiftea
 
 struct UpdateControllerTests {
+    @Test func startupDisablesLegacyAutomaticUpdateDownloads() throws {
+        let suiteName = "UpdateControllerTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        userDefaults.set(true, forKey: UpdateController.sparkleAutomaticDownloadPreferenceKey)
+
+        UpdateController.disableAutomaticUpdateDownloads(in: userDefaults)
+
+        #expect(userDefaults.bool(forKey: UpdateController.sparkleAutomaticDownloadPreferenceKey) == false)
+    }
+
     @Test func sparkleConfigurationRequiresSignedFeedHardening() {
         let info: [String: Any] = [
             "SUFeedURL": "https://tomaspapi.github.io/swiftea/appcast.xml",
