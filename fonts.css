@@ -1,0 +1,20 @@
+@font-face {
+  font-family: "CommitMono";
+  src: url("assets/fonts/CommitMono-VF.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+}
+
+:root {
+  --font-mono: "CommitMono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+  font-feature-settings: "calt" 1;
+  font-variant-ligatures: contextual;
+}
