@@ -22,6 +22,10 @@ run_swift_snippet() {
   /usr/bin/swift -e "$1"
 }
 
+check_legal_documents() {
+  /usr/bin/swift "$ROOT_DIR/script/generate_legal_documents.swift" --check
+}
+
 update_build_paths() {
   APP_BUNDLE="$DERIVED_DATA_DIR/Build/Products/$CONFIGURATION/$APP_NAME.app"
   APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
@@ -221,6 +225,7 @@ exit(NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).is
 }
 
 select_derived_data_dir
+check_legal_documents
 quit_running_app
 remove_legacy_temp_app_bundle
 remove_previous_build_app_bundle

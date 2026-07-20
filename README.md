@@ -67,4 +67,8 @@ Bluetooth behavior can vary by device and firmware. If you report a Bluetooth is
 
 ## License
 
-Swiftea is released under the Zero-Clause BSD License (0BSD). See `LICENSE`.
+Swiftea is released under the [Zero-Clause BSD License (0BSD)](LICENSE).
+
+Prebuilt copies distributed by the maintainer are also covered by Swiftea’s
+[Terms of Use](TERMS_OF_USE.md) and [Safety Notice](SAFETY_NOTICE.md). See
+[Acknowledgements](ACKNOWLEDGEMENTS.md) for third-party software and reference material.

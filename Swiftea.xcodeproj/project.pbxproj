@@ -22,6 +22,7 @@
 		1F11A6CF6060BE474BE45D1E /* MugSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B476C5771DF7B6E0D075044 /* MugSidebarView.swift */; };
 		1FB82C97333E81E22A539FB3 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD5236D23851A6BF8405EBF /* AppVersion.swift */; };
 		22B744B33D564236AD5A876C /* UpdateControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF2DAC7D69B7AA0F7593610 /* UpdateControllerTests.swift */; };
+		264CF89A9069BC7627FA621A /* GeneratedLegalDocumentSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39979B6F352A11D00AE4952F /* GeneratedLegalDocumentSources.swift */; };
 		270EA76BBA1CA7BDB851478A /* TargetTemperatureNotificationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DF9115A2D236FCF36EC34D /* TargetTemperatureNotificationCenter.swift */; };
 		3B73F1914D3E250FD5E95C03 /* MugHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB0CD02009C832E90B01A11 /* MugHistoryStore.swift */; };
 		40310DBD1AA9AFD74F89F5BC /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52402C68C3AD4ADC4410BD0B /* AppModelTests.swift */; };
@@ -58,6 +59,7 @@
 		CFB69DC8CFB7196A45481015 /* EmberAdvertisementParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03674EF6599382D7A89DA085 /* EmberAdvertisementParser.swift */; };
 		D438C69BCDD6ABF18281910D /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F3F94197955FB2BF8583A7 /* OnboardingView.swift */; };
 		D4AF138C15E526FC0F84E8F4 /* LegalDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F3002EEFBDB3B72FF156C9 /* LegalDocuments.swift */; };
+		DD6E882B2E8E6E49954ECFD8 /* LegalDocumentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E6702D284A76C4792E53943 /* LegalDocumentsTests.swift */; };
 		E024E079CE4FF68098DB0A9B /* MugPeripheralSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B75EBC44CE722C2160D2A8C7 /* MugPeripheralSession.swift */; };
 		EA8D679A321A00605377BABE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71FC48932FB0DFF6D10BB640 /* SettingsView.swift */; };
 		F106E34767249D72A95B0813 /* SessionDiagnosticsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F5710DC0DC39CF46D0C63F2 /* SessionDiagnosticsCard.swift */; };
@@ -90,6 +92,7 @@
 		2D2D48F5FAA61DAE87CBE1A9 /* DashboardCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardCard.swift; sourceTree = "<group>"; };
 		32C33F6C67ACF929EF711263 /* TemperatureSegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemperatureSegmentedControl.swift; sourceTree = "<group>"; };
 		3394D3DCA638646C31D9B5E2 /* StateDetailRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateDetailRow.swift; sourceTree = "<group>"; };
+		39979B6F352A11D00AE4952F /* GeneratedLegalDocumentSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedLegalDocumentSources.swift; sourceTree = "<group>"; };
 		3F5710DC0DC39CF46D0C63F2 /* SessionDiagnosticsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDiagnosticsCard.swift; sourceTree = "<group>"; };
 		4010EA7B7C57461F94AAD348 /* HeatingControlCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatingControlCard.swift; sourceTree = "<group>"; };
 		42F61ADAB7E4A1DFE803CC70 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -104,6 +107,7 @@
 		644E690FF8EFCCA9A509A3D0 /* SaveMugNameSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveMugNameSheet.swift; sourceTree = "<group>"; };
 		66312C292A3736D2A3A1A112 /* SwifteaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwifteaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DF2DAC7D69B7AA0F7593610 /* UpdateControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateControllerTests.swift; sourceTree = "<group>"; };
+		6E6702D284A76C4792E53943 /* LegalDocumentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalDocumentsTests.swift; sourceTree = "<group>"; };
 		71FC48932FB0DFF6D10BB640 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		7D5DB09174E9FE4665713BE7 /* PublishedChangelog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedChangelog.swift; sourceTree = "<group>"; };
 		81F4C0B1FE1A69FC8DC55B47 /* MainWindowPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowPresenter.swift; sourceTree = "<group>"; };
@@ -157,6 +161,7 @@
 				52402C68C3AD4ADC4410BD0B /* AppModelTests.swift */,
 				FF1535E4639C402C8DD6EFBC /* EmberAdvertisementParserTests.swift */,
 				9A0C935071DB798B00C18C8D /* EmberMugBluetoothCoordinatorTests.swift */,
+				6E6702D284A76C4792E53943 /* LegalDocumentsTests.swift */,
 				DBD70FAC71682F1157EB5640 /* PublishedChangelogTests.swift */,
 				6DF2DAC7D69B7AA0F7593610 /* UpdateControllerTests.swift */,
 			);
@@ -229,6 +234,7 @@
 			children = (
 				D02F4AE374ABA1F9AED27E2F /* AppLog.swift */,
 				EBD5236D23851A6BF8405EBF /* AppVersion.swift */,
+				39979B6F352A11D00AE4952F /* GeneratedLegalDocumentSources.swift */,
 				C742E6895F7D760FFC4F6BC3 /* HeatingToggleSoundPlayer.swift */,
 				F1CC387A5A6A8B6B660052CF /* IdleSleepPreventionManager.swift */,
 				45F3002EEFBDB3B72FF156C9 /* LegalDocuments.swift */,
@@ -424,6 +430,7 @@
 				40310DBD1AA9AFD74F89F5BC /* AppModelTests.swift in Sources */,
 				FA5BEFADDCE18C979B42706D /* EmberAdvertisementParserTests.swift in Sources */,
 				0880D3DBAD80F3B984BF6D29 /* EmberMugBluetoothCoordinatorTests.swift in Sources */,
+				DD6E882B2E8E6E49954ECFD8 /* LegalDocumentsTests.swift in Sources */,
 				9E509BE50FC5E15D81D609F5 /* PublishedChangelogTests.swift in Sources */,
 				22B744B33D564236AD5A876C /* UpdateControllerTests.swift in Sources */,
 			);
@@ -452,6 +459,7 @@
 				CFB69DC8CFB7196A45481015 /* EmberAdvertisementParser.swift in Sources */,
 				92350A2D0184D4F56D81A217 /* EmberGATT.swift in Sources */,
 				00B10173F4F59B7BAD927E31 /* EmberMugBluetoothCoordinator.swift in Sources */,
+				264CF89A9069BC7627FA621A /* GeneratedLegalDocumentSources.swift in Sources */,
 				BB0CCBB0EFC0CB0DBB76726F /* HeatingControlCard.swift in Sources */,
 				A5713CF39750BAE4C52DA2A9 /* HeatingToggleSoundPlayer.swift in Sources */,
 				5E34305E8FBEDC38CFC03A3B /* HistoryChartCard.swift in Sources */,

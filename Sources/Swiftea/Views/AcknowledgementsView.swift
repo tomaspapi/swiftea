@@ -4,6 +4,7 @@ import SwiftUI
 struct AcknowledgementsView: View {
     @State private var contentHeight: CGFloat = 0
     @State private var requiresScrolling = false
+    private let document = SwifteaLegalDocuments.acknowledgements
 
     var body: some View {
         Group {
@@ -31,62 +32,34 @@ struct AcknowledgementsView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Acknowledgements")
+            Text(document.title)
                 .font(.title2.weight(.semibold))
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Swiftea is an independent app for controlling an Ember Mug over Bluetooth. It is not affiliated with, sponsored by, authorized by, or endorsed by Ember Technologies, Inc.")
-                    .textSelection(.enabled)
-
-                Text("Ember, Ember Mug, Ember Mug 2, and related names and marks are trademarks or property of their respective owners.")
-                    .textSelection(.enabled)
-
-                Text("Swiftea’s Bluetooth implementation was informed by public reverse-engineering notes and prior open-source Ember mug projects, including:")
-                    .textSelection(.enabled)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                AcknowledgementLink(
-                    title: "orlopau/ember-mug",
-                    detail: "Paul Orlob",
-                    url: "https://github.com/orlopau/ember-mug"
-                )
-
-                AcknowledgementLink(
-                    title: "sopelj/python-ember-mug",
-                    detail: "Jesse Sopel",
-                    url: "https://github.com/sopelj/python-ember-mug"
-                )
-
-                AcknowledgementLink(
-                    title: "sopelj/hass-ember-mug-component",
-                    detail: "Jesse Sopel and contributors",
-                    url: "https://github.com/sopelj/hass-ember-mug-component"
-                )
-
-                AcknowledgementLink(
-                    title: "importRyan/Muggle",
-                    detail: "Ryan Ferrell",
-                    url: "https://github.com/importRyan/Muggle"
-                )
-            }
-
-            Text("These projects were used as public reference material; they are not included inside Swiftea.")
-                .textSelection(.enabled)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Included open-source software:")
-                    .font(.body.weight(.semibold))
-                    .textSelection(.enabled)
-
-                AcknowledgementLink(
-                    title: "sparkle-project/Sparkle",
-                    detail: "Sparkle Project contributors",
-                    url: "https://github.com/sparkle-project/Sparkle"
-                )
-
-                Text("Sparkle is included in Swiftea to support direct-download app updates. Its license notice is bundled with the app.")
-                    .textSelection(.enabled)
+            ForEach(document.blocks) { block in
+                switch block.content {
+                case let .heading(title):
+                    Text(title)
+                        .font(.body.weight(.semibold))
+                        .textSelection(.enabled)
+                case let .paragraph(body):
+                    Text(body)
+                        .textSelection(.enabled)
+                case let .list(items):
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(items, id: \.self) { item in
+                            if let link = AcknowledgementLinkContent(markdown: item) {
+                                AcknowledgementLink(
+                                    title: link.title,
+                                    detail: link.detail,
+                                    url: link.url
+                                )
+                            } else {
+                                Text("- \(item)")
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                }
             }
         }
         .font(.body)
@@ -101,6 +74,33 @@ struct AcknowledgementsView: View {
                 )
             }
         }
+    }
+}
+
+private struct AcknowledgementLinkContent {
+    let title: String
+    let detail: String
+    let url: String
+
+    init?(markdown: String) {
+        guard markdown.first == "[",
+              let titleEnd = markdown.firstIndex(of: "]"),
+              markdown.index(after: titleEnd) < markdown.endIndex,
+              markdown[markdown.index(after: titleEnd)] == "(",
+              let urlEnd = markdown[markdown.index(titleEnd, offsetBy: 2)...].firstIndex(of: ")") else {
+            return nil
+        }
+
+        let titleStart = markdown.index(after: markdown.startIndex)
+        let urlStart = markdown.index(titleEnd, offsetBy: 2)
+        let suffixStart = markdown.index(after: urlEnd)
+        let suffix = markdown[suffixStart...]
+            .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "— ", with: "")
+
+        self.title = String(markdown[titleStart..<titleEnd])
+        self.url = String(markdown[urlStart..<urlEnd])
+        self.detail = suffix
     }
 }
 
