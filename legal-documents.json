@@ -1,0 +1,25 @@
+{
+  "documents" : [
+    {
+      "file" : "LICENSE",
+      "path" : "/license/",
+      "sha256" : "e43689ed5dbd460be77c4f8ecc14a1285671194f11f711520a7be8d8d6d847f7"
+    },
+    {
+      "file" : "TERMS_OF_USE.md",
+      "path" : "/terms/",
+      "sha256" : "ab818601ecb9334839380881b53c2dfe3d18de05119ede02c75c0d988e582b93"
+    },
+    {
+      "file" : "SAFETY_NOTICE.md",
+      "path" : "/safety/",
+      "sha256" : "cc1328911bd5b8d7fee95d9809b9229831e036a303e29807c6a5391b61dbde60"
+    },
+    {
+      "file" : "ACKNOWLEDGEMENTS.md",
+      "path" : "/acknowledgements/",
+      "sha256" : "9b052463fc4ec61c97782dc4180d1627697e0f0862ef96cee568a570f35ee7e5"
+    }
+  ],
+  "sourceRef" : "98306b3fd22980708bcf34fae5d2bbde66134251"
+}
