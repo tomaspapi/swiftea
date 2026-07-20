@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Swiftea is a native macOS app for keeping your Ember Mug at the right temperature."
+    >
+    <title>Swiftea</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=d5caa9b2">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=4706673a">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f8f6;
+        --text: #202421;
+        --muted: #667069;
+        --faint: #8a938d;
+        --line: rgba(26, 34, 29, 0.11);
+        --surface: rgba(255, 255, 255, 0.74);
+        --surface-strong: rgba(255, 255, 255, 0.92);
+        --sandstone: #d7ad86;
+        --sandstone-soft: #f2d9bf;
+        --green: #32c759;
+        --green-deep: #167a33;
+        --blue: #0a84ff;
+        --shadow: 0 28px 90px rgba(25, 36, 30, 0.17);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+        font-feature-settings: "calt" 1, "cv09" 1, "cv03" 1, "cv04" 1, "cv10" 1, "cv06" 1, "ss03" 1;
+        font-optical-sizing: auto;
+        font-synthesis: none;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #101816;
+          --text: #f3f6f1;
+          --muted: #b8c0b9;
+          --faint: #838c85;
+          --line: rgba(235, 244, 239, 0.12);
+          --surface: rgba(40, 51, 47, 0.62);
+          --surface-strong: rgba(48, 60, 56, 0.86);
+          --sandstone: #9b7453;
+          --sandstone-soft: #d7ad86;
+          --green-deep: #8ff0a7;
+          --shadow: 0 28px 90px rgba(0, 0, 0, 0.34);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-height: 100%;
+        background: var(--bg);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100svh;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--sandstone) 28%, transparent), transparent 34%),
+          radial-gradient(circle at 94% 76%, color-mix(in srgb, var(--blue) 10%, transparent), transparent 34%),
+          linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--bg) 84%, var(--sandstone-soft) 16%));
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .page {
+        display: flex;
+        width: min(1160px, calc(100% - 44px));
+        min-height: 100svh;
+        margin: 0 auto;
+        flex-direction: column;
+        padding: 24px 0 18px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .mark {
+        display: block;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+      }
+
+      .mark img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .brand-name {
+        font-size: 18px;
+        font-weight: 740;
+        letter-spacing: 0;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .nav-links a {
+        text-decoration: none;
+      }
+
+      .nav-links a:hover {
+        color: var(--text);
+      }
+
+      .hero {
+        display: grid;
+        flex: 1;
+        grid-template-columns: minmax(310px, 0.82fr) minmax(390px, 1.18fr);
+        align-items: center;
+        gap: clamp(32px, 6vw, 74px);
+        padding: clamp(28px, 6vh, 64px) 0 clamp(20px, 4vh, 40px);
+      }
+
+      .copy {
+        max-width: 500px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(43.2px, 6.3vw, 77.4px);
+        font-weight: 800;
+        letter-spacing: 0;
+        line-height: 0.94;
+      }
+
+      .lede {
+        max-width: 470px;
+        margin: 22px 0 0;
+        color: var(--muted);
+        font-size: clamp(16.2px, 1.8vw, 20.7px);
+        line-height: 1.38;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 11px;
+        margin-top: 30px;
+      }
+
+      .button {
+        display: inline-flex;
+        min-height: 46px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 17px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--surface-strong);
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 670;
+        text-decoration: none;
+        box-shadow: 0 12px 28px rgba(24, 34, 28, 0.08);
+        transition: box-shadow 160ms ease;
+      }
+
+      .button.primary {
+        border-color: color-mix(in srgb, #f7923b 60%, transparent);
+        background: linear-gradient(180deg, #f7923b, #fb724b);
+        color: #fff;
+      }
+
+      .note {
+        margin: 17px 0 0;
+        color: var(--faint);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .preview {
+        display: grid;
+        place-items: center;
+      }
+
+      .screenshot-frame {
+        display: block;
+        width: min(100%, 600px);
+        max-height: min(74svh, 710px);
+        aspect-ratio: 1324 / 1490;
+        justify-self: end;
+      }
+
+      .screenshot-frame img {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: min(74svh, 710px);
+        object-fit: contain;
+      }
+
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-top: 1px solid var(--line);
+        padding-top: 14px;
+        color: var(--faint);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .footer a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      .footer a:hover {
+        color: var(--text);
+      }
+
+      .license {
+        margin: 0;
+      }
+
+      .footer-links {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 14px;
+      }
+
+      @media (max-width: 920px) {
+        .page {
+          width: min(680px, calc(100% - 32px));
+        }
+
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 0;
+          justify-items: center;
+          padding-top: 44px;
+          text-align: center;
+        }
+
+        .copy {
+          display: contents;
+        }
+
+        h1 {
+          max-width: 680px;
+          order: 1;
+        }
+
+        .lede {
+          order: 2;
+          margin-right: auto;
+          margin-left: auto;
+        }
+
+        .preview {
+          width: 100%;
+          order: 3;
+          margin-top: 30px;
+        }
+
+        .actions {
+          order: 4;
+          justify-content: center;
+          margin-top: 28px;
+        }
+
+        .note {
+          order: 5;
+          margin-top: 16px;
+        }
+
+        .screenshot-frame {
+          max-height: none;
+          width: min(100%, 520px);
+          justify-self: center;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .page {
+          width: min(100% - 24px, 520px);
+          padding-top: 18px;
+        }
+
+        .nav-links {
+          display: none;
+        }
+
+        .actions {
+          display: grid;
+          width: min(100%, 360px);
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .footer {
+          display: block;
+        }
+
+        .footer-links {
+          margin-top: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="https://tomaspapi.github.io/swiftea/" aria-label="Swiftea home">
+          <span class="mark" aria-hidden="true">
+            <img src="assets/swiftea-appicon.png?v=4706673a" alt="">
+          </span>
+          <span class="brand-name">Swiftea</span>
+        </a>
+        <div class="nav-links">
+          <a href="https://github.com/tomaspapi/swiftea/releases">Releases</a>
+          <a href="https://github.com/tomaspapi/swiftea">Source</a>
+        </div>
+      </nav>
+
+      <main class="hero" aria-label="Swiftea introduction">
+        <section class="copy">
+          <h1>Keep every sip just right.</h1>
+          <p class="lede">
+            Swiftea keeps your Ember Mug warm, ready, and easy to control from your Mac.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/tomaspapi/swiftea/releases/latest/download/Swiftea.zip">
+              Download for macOS
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+              </svg>
+            </a>
+            <a class="button" href="https://github.com/tomaspapi/swiftea">
+              View source
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M5.5 3.5 2 8l3.5 4.5M10.5 3.5 14 8l-3.5 4.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+              </svg>
+            </a>
+          </div>
+          <p class="note">Requires macOS 26 or newer.<br>Unofficial and not affiliated with Ember Technologies, Inc.</p>
+        </section>
+
+        <section class="preview" aria-label="Swiftea app screenshot">
+          <picture class="screenshot-frame">
+            <source srcset="assets/swiftea-demo-dark.png?v=630e849f" media="(prefers-color-scheme: dark)">
+            <img src="assets/swiftea-demo-light.png?v=0726eb10" alt="Swiftea showing a connected mug, battery history, temperature controls, and saved mugs.">
+          </picture>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p class="license">
+          Swiftea is dedicated to the public domain under the
+          <a href="https://github.com/tomaspapi/swiftea/blob/main/LICENSE">Zero-Clause BSD License (0BSD)</a>.
+        </p>
+        <div class="footer-links">
+          <a href="https://github.com/tomaspapi/swiftea/blob/main/ACKNOWLEDGEMENTS.md">Acknowledgements</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

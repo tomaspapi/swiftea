@@ -1,0 +1,18 @@
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Swiftea</title>
+        <item>
+            <title>0.2.1</title>
+            <pubDate>Mon, 20 Jul 2026 00:11:34 -0700</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tomaspapi/swiftea/releases/download/v0.2.1/Swiftea-0.2.1.zip" length="3845491" type="application/octet-stream" sparkle:edSignature="Q1+GPYGkycHd18tpzSoslud0CMeGVmy68/mEWKSoAL/6hRjHLtcjU0zQdb0n0GW5PZuZYJS+akFQFOwnAI0MCA=="></enclosure>
+        </item>
+    </channel>
+</rss><!-- sparkle-signatures:
+edSignature: h9vlJZei9qlQw8w8sGthJWTat5fKqRREj8Oq8EbOVPp+fBS7rQ1mKTt7CcK4k3qgyOLEi+n55hHbdIuq0dYECA==
+length: 1039
+-->
