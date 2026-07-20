@@ -9,8 +9,7 @@ struct ConnectionStatusCard: View {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: model.connectionState.systemImage)
                         .font(.title2)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.tint)
+                        .swifteaSymbolStyle(SwifteaSymbolColor.blue)
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(model.connectionState.title)

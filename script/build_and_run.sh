@@ -32,7 +32,7 @@ can_write_to_directory() {
   local probe
 
   mkdir -p "$dir" 2>/dev/null || return 1
-  probe="$dir/.codex-write-test"
+  probe="$dir/.swiftea-write-test"
   if ! touch "$probe" >/dev/null 2>&1; then
     return 1
   fi
@@ -96,6 +96,7 @@ ensure_xcode_project() {
 build_app() {
   ensure_xcode_project
   mkdir -p "$DERIVED_DATA_DIR"
+
   xcodebuild \
     -project "$PROJECT_FILE" \
     -scheme "$SCHEME_NAME" \
@@ -180,9 +181,10 @@ import Foundation
 
 let appPath = ProcessInfo.processInfo.environment["APP_TO_OPEN"]!
 let launchArguments = ProcessInfo.processInfo.environment["APP_LAUNCH_ARGUMENTS"] ?? ""
+let activateOnLaunch = ProcessInfo.processInfo.environment["SWIFTEA_ACTIVATE_ON_LAUNCH"] == "1"
 let appURL = URL(fileURLWithPath: appPath)
 let configuration = NSWorkspace.OpenConfiguration()
-configuration.activates = true
+configuration.activates = activateOnLaunch
 configuration.environment = ProcessInfo.processInfo.environment
 
 if !launchArguments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

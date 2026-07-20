@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Swiftea
@@ -147,6 +148,72 @@ struct AppModelTests {
         model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 0, isEmpty: false))
 
         #expect(soundPlayer.events == [true, false, true])
+    }
+
+    @Test func emptyMugTurnsVisibleHeatingOffWithoutClearingFirmwareTarget() {
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            bluetoothCoordinator: bluetoothCoordinator
+        )
+
+        model.setTargetTemperatureDraft(to: 58)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, isEmpty: false))
+        bluetoothCoordinator.targetWrites.removeAll()
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, isEmpty: true))
+
+        #expect(model.isTemperatureControlOff)
+        #expect(model.targetTemperatureDraftCelsius == 58)
+        #expect(bluetoothCoordinator.targetWrites.isEmpty)
+    }
+
+    @Test func emptyMugWithZeroTargetRearmsStandaloneHeatingWithRememberedDraft() {
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            bluetoothCoordinator: bluetoothCoordinator
+        )
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, isEmpty: false))
+        model.setTargetTemperatureDraft(to: 56)
+        model.turnTemperatureControlOff()
+        #expect(bluetoothCoordinator.targetWrites.last == .init(celsius: nil, identifier: "MUG-1"))
+
+        bluetoothCoordinator.targetWrites.removeAll()
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 0, isEmpty: true))
+
+        #expect(model.isTemperatureControlOff)
+        #expect(model.targetTemperatureDraftCelsius == 56)
+        #expect(bluetoothCoordinator.targetWrites == [.init(celsius: 56, identifier: "MUG-1")])
+    }
+
+    @Test func emptyMugWithArmedTargetKeepsToggleOffWhileRememberingTarget() {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 0, isEmpty: true))
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 56, isEmpty: true))
+
+        #expect(model.isTemperatureControlOff)
+        #expect(model.targetTemperatureDraftCelsius == 56)
+        #expect(model.targetTemperatureLabel == "Off")
+    }
+
+    @Test func initialEmptyConnectionDoesNotClearFirmwareTarget() {
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            bluetoothCoordinator: bluetoothCoordinator
+        )
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, isEmpty: true))
+
+        #expect(model.isTemperatureControlOff)
+        #expect(model.targetTemperatureDraftCelsius == 58)
+        #expect(bluetoothCoordinator.targetWrites.isEmpty)
     }
 
     @Test func refilledMugAutomaticallyResumesHeatingWithRememberedDraft() {
@@ -494,15 +561,34 @@ struct AppModelTests {
         #expect(model.targetTemperatureDraftCelsius == 62)
     }
 
-    @Test func savedThemeAndTemperatureUnitPreferencesAreRestoredOnInit() {
+    @Test func savedThemeTemperatureUnitAndTimeFormatPreferencesAreRestoredOnInit() {
         let preferences = InMemoryAppPreferencesStore()
         preferences.set("dark", forKey: AppPreferencesKey.themePreference)
         preferences.set("fahrenheit", forKey: AppPreferencesKey.temperatureUnitPreference)
+        preferences.set("twelveHour", forKey: AppPreferencesKey.timeFormatPreference)
 
         let model = AppModel(startBluetooth: false, preferences: preferences)
 
         #expect(model.themePreference == .dark)
         #expect(model.temperatureUnitPreference == .fahrenheit)
+        #expect(model.timeFormatPreference == .twelveHour)
+    }
+
+    @Test func missingDisplayPreferencesCanDefaultFromSystemSettingsWithoutPersistingImmediately() {
+        let preferences = InMemoryAppPreferencesStore()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            systemPreferenceDefaults: .init(
+                temperatureUnitPreference: .fahrenheit,
+                timeFormatPreference: .twelveHour
+            )
+        )
+
+        #expect(model.temperatureUnitPreference == .fahrenheit)
+        #expect(model.timeFormatPreference == .twelveHour)
+        #expect(preferences.string(forKey: AppPreferencesKey.temperatureUnitPreference) == nil)
+        #expect(preferences.string(forKey: AppPreferencesKey.timeFormatPreference) == nil)
     }
 
     @Test func savedChartTimeframePreferenceIsRestoredOnInit() {
@@ -530,6 +616,205 @@ struct AppModelTests {
         let model = AppModel(startBluetooth: false, preferences: preferences)
 
         #expect(model.appLocationPreference == .menuBar)
+    }
+
+    @Test func onboardingPresentsOnceOnBrandNewInstallUntilCompleted() {
+        let preferences = InMemoryAppPreferencesStore()
+        let acceptanceDate = Date(timeIntervalSince1970: 1_750_000_000)
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            nowProvider: { acceptanceDate }
+        )
+
+        #expect(model.shouldPresentOnboarding)
+        #expect(!model.shouldStartOnboardingAtLegalAgreement)
+        #expect(!model.hasAcceptedCurrentTermsOfUse)
+        #expect(!model.hasAcceptedCurrentSafetyNotice)
+        #expect(!model.hasAcceptedCurrentLegalDocuments)
+        #expect(model.consumeOnboardingPresentation())
+        #expect(!model.consumeOnboardingPresentation())
+
+        model.acceptCurrentLegalDocumentsAndCompleteOnboarding()
+
+        #expect(!model.shouldPresentOnboarding)
+        #expect(model.hasAcceptedCurrentTermsOfUse)
+        #expect(model.hasAcceptedCurrentSafetyNotice)
+        #expect(model.hasAcceptedCurrentLegalDocuments)
+        #expect(preferences.bool(forKey: AppPreferencesKey.hasCompletedOnboarding) == true)
+        #expect(
+            preferences.string(forKey: AppPreferencesKey.acceptedTermsVersion)
+                == SwifteaLegalDocuments.currentTermsVersion
+        )
+        #expect(
+            preferences.string(forKey: AppPreferencesKey.acceptedTermsDate)
+                == ISO8601DateFormatter().string(from: acceptanceDate)
+        )
+        #expect(
+            preferences.string(forKey: AppPreferencesKey.acceptedSafetyNoticeVersion)
+                == SwifteaLegalDocuments.currentSafetyNoticeVersion
+        )
+        #expect(
+            preferences.string(forKey: AppPreferencesKey.acceptedSafetyNoticeDate)
+                == ISO8601DateFormatter().string(from: acceptanceDate)
+        )
+
+        let restoredModel = AppModel(startBluetooth: false, preferences: preferences)
+        #expect(!restoredModel.shouldPresentOnboarding)
+    }
+
+    @Test func legalTermsPreserveMandatoryLawWithoutCatalogingRemedies() throws {
+        let agreement = try #require(
+            SwifteaLegalDocuments.termsOfUse.sections.first {
+                $0.title == "1. Agreement"
+            }
+        )
+        let release = try #require(
+            SwifteaLegalDocuments.termsOfUse.sections.first {
+                $0.title == "12. Assumption of risk and release"
+            }
+        )
+        let liability = try #require(
+            SwifteaLegalDocuments.termsOfUse.sections.first {
+                $0.title == "13. Limitation of liability"
+            }
+        )
+        let localRights = try #require(
+            SwifteaLegalDocuments.termsOfUse.sections.first {
+                $0.title == "16. Rights that cannot be waived"
+            }
+        )
+        let governingLaw = try #require(
+            SwifteaLegalDocuments.termsOfUse.sections.first {
+                $0.title == "17. Governing law and general terms"
+            }
+        )
+
+        #expect(agreement.body.contains("Sections 5–7 and 11–13 are especially important"))
+        #expect(agreement.body.contains("release of certain claims"))
+        #expect(release.body.contains("incorrect or unintended commands"))
+        #expect(release.body.contains("ordinary negligence"))
+        #expect(release.body.contains("gross negligence"))
+        #expect(release.body.contains("gross fault"))
+        #expect(release.body.contains("intentional misconduct"))
+        #expect(liability.body.contains("tort (including ordinary negligence)"))
+        #expect(liability.body.contains("gross negligence"))
+        #expect(liability.body.contains("gross fault"))
+        #expect(liability.body.contains("intentional misconduct"))
+        #expect(localRights.body.contains("right, remedy, guarantee, warranty, or liability"))
+        #expect(localRights.body.contains("only to the extent of the conflict"))
+        #expect(!localRights.body.contains("regulator or law-enforcement authority"))
+        #expect(!localRights.body.contains("class or collective proceeding"))
+        #expect(governingLaw.body.contains("where legally permitted"))
+        #expect(governingLaw.body.contains("to the extent permitted by applicable law"))
+    }
+
+    @Test func existingInstallPresentsOnlyTheLegalAgreementUntilAccepted() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("dark", forKey: AppPreferencesKey.themePreference)
+
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(model.shouldPresentOnboarding)
+        #expect(model.shouldStartOnboardingAtLegalAgreement)
+
+        model.acceptCurrentLegalDocumentsAndCompleteOnboarding()
+
+        let restoredModel = AppModel(startBluetooth: false, preferences: preferences)
+        #expect(!restoredModel.shouldPresentOnboarding)
+        #expect(!restoredModel.shouldStartOnboardingAtLegalAgreement)
+    }
+
+    @Test func outdatedLegalTermsRequireAcceptanceAgain() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set(true, forKey: AppPreferencesKey.hasCompletedOnboarding)
+        preferences.set("2025-01-01", forKey: AppPreferencesKey.acceptedTermsVersion)
+        preferences.set(
+            SwifteaLegalDocuments.currentSafetyNoticeVersion,
+            forKey: AppPreferencesKey.acceptedSafetyNoticeVersion
+        )
+
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(model.shouldPresentOnboarding)
+        #expect(model.shouldStartOnboardingAtLegalAgreement)
+        #expect(!model.hasAcceptedCurrentTermsOfUse)
+        #expect(model.hasAcceptedCurrentSafetyNotice)
+        #expect(!model.hasAcceptedCurrentLegalDocuments)
+    }
+
+    @Test func outdatedSafetyNoticeRequiresAcceptanceAgain() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set(true, forKey: AppPreferencesKey.hasCompletedOnboarding)
+        preferences.set(
+            SwifteaLegalDocuments.currentTermsVersion,
+            forKey: AppPreferencesKey.acceptedTermsVersion
+        )
+        preferences.set("0.9", forKey: AppPreferencesKey.acceptedSafetyNoticeVersion)
+
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(model.shouldPresentOnboarding)
+        #expect(model.shouldStartOnboardingAtLegalAgreement)
+        #expect(model.hasAcceptedCurrentTermsOfUse)
+        #expect(!model.hasAcceptedCurrentSafetyNotice)
+        #expect(!model.hasAcceptedCurrentLegalDocuments)
+    }
+
+    @Test func bluetoothRuntimeStaysDormantUntilBothCurrentLegalDocumentsAreAccepted() {
+        let preferences = InMemoryAppPreferencesStore()
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(
+            startBluetooth: true,
+            preferences: preferences,
+            heatingToggleSoundPlayer: SilentHeatingToggleSoundPlayer.shared,
+            targetTemperatureNotifier: SilentTargetTemperatureNotificationCenter.shared,
+            idleSleepPreventionManager: NoOpIdleSleepPreventionManager.shared,
+            mugHistoryStore: InMemoryMugHistoryStore(),
+            bluetoothCoordinator: bluetoothCoordinator,
+            systemPreferenceDefaults: .stableTesting
+        )
+
+        model.handleReconnectOpportunity()
+
+        #expect(bluetoothCoordinator.preferredIdentifierUpdates.isEmpty)
+        #expect(bluetoothCoordinator.autoConnectIdentifierUpdates.isEmpty)
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 0)
+
+        model.acceptCurrentLegalDocumentsAndCompleteOnboarding()
+
+        #expect(bluetoothCoordinator.preferredIdentifierUpdates == [nil])
+        #expect(bluetoothCoordinator.autoConnectIdentifierUpdates == [[]])
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 1)
+
+        model.acceptCurrentLegalDocumentsAndCompleteOnboarding()
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 1)
+    }
+
+    @Test func bluetoothRuntimeStartsImmediatelyWhenBothAcceptedVersionsAreCurrent() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set(
+            SwifteaLegalDocuments.currentTermsVersion,
+            forKey: AppPreferencesKey.acceptedTermsVersion
+        )
+        preferences.set(
+            SwifteaLegalDocuments.currentSafetyNoticeVersion,
+            forKey: AppPreferencesKey.acceptedSafetyNoticeVersion
+        )
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+
+        _ = AppModel(
+            startBluetooth: true,
+            preferences: preferences,
+            heatingToggleSoundPlayer: SilentHeatingToggleSoundPlayer.shared,
+            targetTemperatureNotifier: SilentTargetTemperatureNotificationCenter.shared,
+            idleSleepPreventionManager: NoOpIdleSleepPreventionManager.shared,
+            mugHistoryStore: InMemoryMugHistoryStore(),
+            bluetoothCoordinator: bluetoothCoordinator,
+            systemPreferenceDefaults: .stableTesting
+        )
+
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 1)
     }
 
     @Test func updateChangelogDoesNotPresentOnFirstInstallAndRecordsCurrentVersion() {
@@ -853,6 +1138,113 @@ struct AppModelTests {
         #expect(loadedEvents == [event])
     }
 
+    @Test func historyFileStoreRejectsSymlinkedHistoryFileOnAppend() async throws {
+        let directoryURL = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let targetURL = directoryURL.appendingPathComponent("target.txt")
+        let historyURL = directoryURL.appendingPathComponent("mug-history-v1.jsonl")
+        try Data("ORIGINAL\n".utf8).write(to: targetURL)
+        try FileManager.default.createSymbolicLink(at: historyURL, withDestinationURL: targetURL)
+
+        let store = MugHistoryFileStore(fileURL: historyURL)
+        await expectHistoryStoreToRejectUnsafePath {
+            try await store.append(sampleHistoryEvent())
+        }
+
+        let targetContents = try String(contentsOf: targetURL, encoding: .utf8)
+        #expect(targetContents == "ORIGINAL\n")
+    }
+
+    @Test func historyFileStoreRejectsHardLinkedHistoryFileOnAppend() async throws {
+        let directoryURL = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let targetURL = directoryURL.appendingPathComponent("target.txt")
+        let historyURL = directoryURL.appendingPathComponent("mug-history-v1.jsonl")
+        try Data("ORIGINAL\n".utf8).write(to: targetURL)
+        try FileManager.default.linkItem(at: targetURL, to: historyURL)
+
+        let store = MugHistoryFileStore(fileURL: historyURL)
+        await expectHistoryStoreToRejectUnsafePath {
+            try await store.append(sampleHistoryEvent())
+        }
+
+        let targetContents = try String(contentsOf: targetURL, encoding: .utf8)
+        #expect(targetContents == "ORIGINAL\n")
+    }
+
+    @Test func historyFileStoreRejectsSymlinkedHistoryFileOnReplace() async throws {
+        let directoryURL = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let targetURL = directoryURL.appendingPathComponent("target.txt")
+        let historyURL = directoryURL.appendingPathComponent("mug-history-v1.jsonl")
+        try Data("ORIGINAL\n".utf8).write(to: targetURL)
+        try FileManager.default.createSymbolicLink(at: historyURL, withDestinationURL: targetURL)
+
+        let store = MugHistoryFileStore(fileURL: historyURL)
+        await expectHistoryStoreToRejectUnsafePath {
+            try await store.replaceEvents([sampleHistoryEvent()])
+        }
+
+        let targetContents = try String(contentsOf: targetURL, encoding: .utf8)
+        #expect(targetContents == "ORIGINAL\n")
+    }
+
+    @Test func historyFileStoreRejectsHardLinkedHistoryFileOnReplace() async throws {
+        let directoryURL = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let targetURL = directoryURL.appendingPathComponent("target.txt")
+        let historyURL = directoryURL.appendingPathComponent("mug-history-v1.jsonl")
+        try Data("ORIGINAL\n".utf8).write(to: targetURL)
+        try FileManager.default.linkItem(at: targetURL, to: historyURL)
+
+        let store = MugHistoryFileStore(fileURL: historyURL)
+        await expectHistoryStoreToRejectUnsafePath {
+            try await store.replaceEvents([sampleHistoryEvent()])
+        }
+
+        let targetContents = try String(contentsOf: targetURL, encoding: .utf8)
+        #expect(targetContents == "ORIGINAL\n")
+    }
+
+    @Test func historyFileStoreRejectsSymlinkedHistoryFileOnLoad() async throws {
+        let directoryURL = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let targetURL = directoryURL.appendingPathComponent("target.txt")
+        let historyURL = directoryURL.appendingPathComponent("mug-history-v1.jsonl")
+        try Data("ORIGINAL\n".utf8).write(to: targetURL)
+        try FileManager.default.createSymbolicLink(at: historyURL, withDestinationURL: targetURL)
+
+        let store = MugHistoryFileStore(fileURL: historyURL)
+        await expectHistoryStoreToRejectUnsafePath {
+            _ = try await store.loadEvents()
+        }
+    }
+
+    @Test func historyFileStoreRejectsSymlinkedHistoryDirectory() async throws {
+        let baseDirectoryURL = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: baseDirectoryURL) }
+
+        let realDirectoryURL = baseDirectoryURL.appendingPathComponent("real-history", isDirectory: true)
+        let linkedDirectoryURL = baseDirectoryURL.appendingPathComponent("linked-history", isDirectory: true)
+        try FileManager.default.createDirectory(at: realDirectoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: linkedDirectoryURL, withDestinationURL: realDirectoryURL)
+
+        let store = MugHistoryFileStore(
+            fileURL: linkedDirectoryURL.appendingPathComponent("mug-history-v1.jsonl")
+        )
+
+        await expectHistoryStoreToRejectUnsafePath {
+            try await store.append(sampleHistoryEvent())
+        }
+
+        #expect(FileManager.default.fileExists(atPath: realDirectoryURL.appendingPathComponent("mug-history-v1.jsonl").path) == false)
+    }
+
     @Test func historyIsKeptPerMugIdentifier() {
         var now = Date(timeIntervalSince1970: 1_800_000_000)
         let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), nowProvider: { now })
@@ -964,6 +1356,119 @@ struct AppModelTests {
 
         #expect(model.savedMugIdentifiers == ["MUG-SAVED"])
         #expect(!model.autoConnectMugIdentifiers.contains("MUG-SAVED"))
+    }
+
+    @Test func manualDisconnectSuppressesEventDrivenReconnectUntilUserConnectsAgain() {
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.savedMugIdentifiers
+        )
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.autoConnectMugIdentifiers
+        )
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            bluetoothCoordinator: bluetoothCoordinator
+        )
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, activePeripheralIdentifier: "MUG-SAVED"))
+        bluetoothCoordinator.recoverAutoConnectMugsCallCount = 0
+
+        model.disconnectSidebarMug(identifier: "MUG-SAVED")
+        model.handleReconnectOpportunity()
+
+        #expect(model.autoConnectMugIdentifiers == ["MUG-SAVED"])
+        #expect(bluetoothCoordinator.autoConnectIdentifierUpdates.last == [])
+        #expect(bluetoothCoordinator.disconnectedMugIdentifiers == ["MUG-SAVED"])
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 0)
+
+        model.connectSidebarMug(identifier: "MUG-SAVED")
+        model.handleReconnectOpportunity()
+
+        #expect(model.autoConnectMugIdentifiers == ["MUG-SAVED"])
+        #expect(bluetoothCoordinator.autoConnectIdentifierUpdates.last == ["MUG-SAVED"])
+        #expect(bluetoothCoordinator.preferredIdentifierUpdates.last == "MUG-SAVED")
+        #expect(bluetoothCoordinator.scanForPreferredMugCallCount == 1)
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 1)
+    }
+
+    @Test func lostDisconnectRemainsEligibleForEventDrivenReconnect() {
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.savedMugIdentifiers
+        )
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.autoConnectMugIdentifiers
+        )
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            bluetoothCoordinator: bluetoothCoordinator
+        )
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, activePeripheralIdentifier: "MUG-SAVED"))
+        bluetoothCoordinator.recoverAutoConnectMugsCallCount = 0
+        model.apply(
+            snapshot: connectedSnapshot(
+                targetTemperatureCelsius: nil,
+                discoveryPhase: .disconnected,
+                activePeripheralIdentifier: "MUG-SAVED",
+                detailMessage: "Connection lost.",
+                canWriteTargetTemperature: false
+            )
+        )
+
+        #expect(model.autoConnectMugIdentifiers == ["MUG-SAVED"])
+        #expect(bluetoothCoordinator.autoConnectIdentifierUpdates.last == ["MUG-SAVED"])
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 1)
+    }
+
+    @Test func manualDisconnectSuppressionPersistsUntilUserConnectsAgain() {
+        let firstCoordinator = RecordingBluetoothCoordinator()
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.savedMugIdentifiers
+        )
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.autoConnectMugIdentifiers
+        )
+        let firstModel = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            bluetoothCoordinator: firstCoordinator
+        )
+        firstModel.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, activePeripheralIdentifier: "MUG-SAVED"))
+
+        firstModel.disconnectSidebarMug(identifier: "MUG-SAVED")
+
+        #expect(preferences.string(forKey: AppPreferencesKey.manuallyDisconnectedMugIdentifiers)?.contains("MUG-SAVED") == true)
+
+        let secondCoordinator = RecordingBluetoothCoordinator()
+        let secondModel = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            bluetoothCoordinator: secondCoordinator
+        )
+
+        secondModel.handleReconnectOpportunity()
+
+        #expect(secondModel.autoConnectMugIdentifiers == ["MUG-SAVED"])
+        #expect(secondCoordinator.autoConnectIdentifierUpdates.last == [])
+        #expect(secondCoordinator.recoverAutoConnectMugsCallCount == 0)
+
+        secondModel.connectSidebarMug(identifier: "MUG-SAVED")
+
+        #expect(preferences.string(forKey: AppPreferencesKey.manuallyDisconnectedMugIdentifiers) == nil)
+        #expect(secondCoordinator.autoConnectIdentifierUpdates.last == ["MUG-SAVED"])
     }
 
     @Test func connectingMoreThanThreeMugsIsCappedInTheUI() {
@@ -1336,6 +1841,84 @@ struct AppModelTests {
         #expect(preferences.string(forKey: AppPreferencesKey.chartTimeframePreference) == "twentyFourHours")
     }
 
+    @Test func timeFormatPreferencePersistsWhenChanged() {
+        let preferences = InMemoryAppPreferencesStore()
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        model.timeFormatPreference = .twelveHour
+
+        #expect(preferences.string(forKey: AppPreferencesKey.timeFormatPreference) == "twelveHour")
+    }
+
+    @Test func chartTimeLabelsRespectSelectedTimeFormat() throws {
+        let date = Date(timeIntervalSince1970: 15 * 60 * 60 + 5 * 60)
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let locale = Locale(identifier: "en_US_POSIX")
+
+        #expect(
+            AppModel.formatTime(
+                date,
+                preference: .twentyFourHour,
+                timeZone: timeZone,
+                locale: locale
+            ) == "15:05"
+        )
+        #expect(
+            AppModel.formatTime(
+                date,
+                preference: .twelveHour,
+                timeZone: timeZone,
+                locale: locale
+            ) == "3:05\npm"
+        )
+    }
+
+    @Test func chartTimeLabelsRespectSelectedTimeFormatWithRegularUserLocale() throws {
+        let date = Date(timeIntervalSince1970: 15 * 60 * 60 + 5 * 60)
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let locale = Locale(identifier: "en_US")
+
+        #expect(
+            AppModel.formatTime(
+                date,
+                preference: .twentyFourHour,
+                timeZone: timeZone,
+                locale: locale
+            ) == "15:05"
+        )
+        #expect(
+            AppModel.formatTime(
+                date,
+                preference: .twelveHour,
+                timeZone: timeZone,
+                locale: locale
+            ) == "3:05\npm"
+        )
+    }
+
+    @Test func chartXAxisLayoutDoesNotMoveBetweenTimeFormats() {
+        #expect(AppModel.TimeFormatPreference.twentyFourHour.chartXAxisLabelWidth == AppModel.TimeFormatPreference.twelveHour.chartXAxisLabelWidth)
+        #expect(AppModel.TimeFormatPreference.twelveHour.chartXAxisLabelFontSize < AppModel.TimeFormatPreference.twentyFourHour.chartXAxisLabelFontSize)
+    }
+
+    @Test func twelveHourChartMeridiemLabelIsOnePointSmallerThanTimeLabel() {
+        #expect(
+            AppModel.TimeFormatPreference.twelveHour.chartXAxisMeridiemLabelFontSize
+                == AppModel.TimeFormatPreference.twelveHour.chartXAxisLabelFontSize - 1
+        )
+    }
+
+    @Test func twelveHourChartLabelFitsStableAxisSlot() {
+        let font = NSFont.monospacedDigitSystemFont(
+            ofSize: AppModel.TimeFormatPreference.twelveHour.chartXAxisLabelFontSize,
+            weight: .regular
+        )
+        let widestExpectedLabel = "12:59" as NSString
+        let labelWidth = widestExpectedLabel.size(withAttributes: [.font: font]).width
+
+        #expect(labelWidth <= AppModel.TimeFormatPreference.twelveHour.chartXAxisLabelWidth)
+    }
+
     @Test func keepRunningWhenWindowClosedPreferencePersistsWhenChanged() {
         let preferences = InMemoryAppPreferencesStore()
         let model = AppModel(startBluetooth: false, preferences: preferences)
@@ -1680,6 +2263,53 @@ struct AppModelTests {
     }
 
     @MainActor
+    private final class RecordingBluetoothCoordinator: EmberMugBluetoothCoordinating {
+        struct TargetWrite: Equatable {
+            let celsius: Double?
+            let identifier: String?
+        }
+
+        var targetWrites: [TargetWrite] = []
+        var preferredIdentifierUpdates: [String?] = []
+        var autoConnectIdentifierUpdates: [[String]] = []
+        var recoverAutoConnectMugsCallCount = 0
+        var scanForPreferredMugCallCount = 0
+        var disconnectedMugIdentifiers: [String] = []
+
+        func retryScan() {}
+        func setPreferredPeripheralIdentifier(_ identifier: String?) {
+            preferredIdentifierUpdates.append(identifier)
+        }
+
+        func setAutoConnectPeripheralIdentifiers(_ identifiers: [String]) {
+            autoConnectIdentifierUpdates.append(identifiers)
+        }
+
+        func recoverAutoConnectMugs() {
+            recoverAutoConnectMugsCallCount += 1
+        }
+
+        func connectToCandidate(identifier: String) {}
+        func stopDiscoveryScan() {}
+        func scanForPreferredMug() {
+            scanForPreferredMugCallCount += 1
+        }
+
+        func disconnectMug(identifier: String) {
+            disconnectedMugIdentifiers.append(identifier)
+        }
+
+        func forgetMug(identifier: String) {}
+        func startDiscoveryScan(excluding identifiers: [String]) {}
+        func refreshReadings() {}
+        func refreshReadings(for identifier: String?) {}
+
+        func setTargetTemperature(_ celsius: Double?, for identifier: String?) {
+            targetWrites.append(.init(celsius: celsius, identifier: identifier))
+        }
+    }
+
+    @MainActor
     private final class SpyHeatingToggleSoundPlayer: HeatingToggleSoundPlaying {
         var events: [Bool] = []
 
@@ -1855,5 +2485,35 @@ struct AppModelTests {
         model.mugHistoryEvents
             .filter { $0.mugIdentifier == mugIdentifier }
             .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private func temporaryHistoryDirectory() throws -> URL {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiftea-history-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        return directoryURL
+    }
+
+    private func sampleHistoryEvent() -> MugHistoryEvent {
+        MugHistoryEvent(
+            timestamp: Date(timeIntervalSince1970: 1_800_000_000),
+            mugIdentifier: "MUG-1",
+            appSessionID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            kind: .reading,
+            batteryPercent: 71,
+            temperatureCelsius: 54.3,
+            isHeatingOn: true,
+            isConnected: true
+        )
+    }
+
+    private func expectHistoryStoreToRejectUnsafePath(_ operation: () async throws -> Void) async {
+        var didThrow = false
+        do {
+            try await operation()
+        } catch {
+            didThrow = true
+        }
+        #expect(didThrow)
     }
 }

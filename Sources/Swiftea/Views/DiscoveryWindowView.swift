@@ -6,44 +6,36 @@ struct DiscoveryWindowView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ZStack {
-            if model.discoveryWindowMugs.isEmpty {
-                VStack(spacing: 16) {
-                    Spacer(minLength: 14)
+        VStack(spacing: 14) {
+            Text("Searching for nearby mugs…")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
 
-                    Text(model.discoveryWindowStatusLabel)
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
+            DiscoveryInstructions()
 
-                    RadarScanView()
-                        .frame(width: 280, height: 280)
-                        .opacity(0.72)
+            ZStack {
+                RadarScanView()
+                    .frame(width: 280, height: 280)
+                    .opacity(0.72)
 
-                    Spacer(minLength: 14)
-                }
-                .padding(28)
-            } else {
-                ZStack {
-                    RadarScanView()
-                        .frame(width: 280, height: 280)
-                        .opacity(0.72)
-
+                if !model.discoveryWindowMugs.isEmpty {
                     DiscoveryMugStack(mugs: model.discoveryWindowMugs) { mug in
                         model.connectDiscoveryMug(identifier: mug.identifier)
                         dismiss()
                         returnToMainWindow()
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(28)
-                .animation(
-                    .spring(response: 0.34, dampingFraction: 0.82),
-                    value: model.discoveryWindowMugs.map(\.identifier)
-                )
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(
+                .spring(response: 0.34, dampingFraction: 0.82),
+                value: model.discoveryWindowMugs.map(\.identifier)
+            )
         }
-        .frame(width: 420, height: 460)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 22)
+        .frame(width: 420, height: 580)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             model.beginDiscoveryWindow()
@@ -59,6 +51,34 @@ struct DiscoveryWindowView: View {
             window.title == "Swiftea"
         }
         mainWindow?.makeKeyAndOrderFront(nil)
+    }
+}
+
+private struct DiscoveryInstructions: View {
+    private let steps = [
+        "Hard close every app that regularly controls your Ember Mug, on every device.",
+        "Press and hold the power button on the base of your mug for 6–8 seconds, until its light blinks blue.",
+        "Your mug will appear on the discovery screen below."
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text("\(index + 1).")
+                        .fontWeight(.semibold)
+                        .frame(width: 16, alignment: .trailing)
+
+                    Text(step)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: 340, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("How to prepare your mug for discovery")
     }
 }
 
@@ -81,7 +101,6 @@ private struct DiscoveryMugStack: View {
                 .background(OverlayScrollViewConfigurator(isScrollable: isScrollable))
         }
         .frame(height: Self.scrollViewportHeight)
-        .scrollClipDisabled()
         .scrollDisabled(!isScrollable)
     }
 

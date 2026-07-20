@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -72,9 +71,13 @@ struct SettingsView: View {
             }
         }
 
-        Section("Temperature") {
-            LabeledContent("Units") {
+        Section("Units") {
+            LabeledContent("Temperature") {
                 unitsMenu
+            }
+
+            LabeledContent("Time") {
+                timeMenu
             }
         }
 
@@ -121,9 +124,16 @@ struct SettingsView: View {
                     .monospacedDigit()
             }
 
-            LabeledContent("License") {
-                Button("Zero-Clause BSD (0BSD)") {
-                    openWindow(id: "license")
+            LabeledContent("Terms of Use") {
+                Button("Open") {
+                    openWindow(id: "terms-of-use")
+                }
+                .buttonStyle(.link)
+            }
+
+            LabeledContent("Safety Notice") {
+                Button("Open") {
+                    openWindow(id: "safety-notice")
                 }
                 .buttonStyle(.link)
             }
@@ -131,6 +141,13 @@ struct SettingsView: View {
             LabeledContent("Acknowledgements") {
                 Button("Open") {
                     openWindow(id: "acknowledgements")
+                }
+                .buttonStyle(.link)
+            }
+
+            LabeledContent("License") {
+                Button("Zero-Clause BSD (0BSD)") {
+                    openWindow(id: "license")
                 }
                 .buttonStyle(.link)
             }
@@ -207,6 +224,21 @@ struct SettingsView: View {
             }
         } label: {
             Text(model.temperatureUnitPreference.title)
+                .frame(minWidth: 132, alignment: .leading)
+        }
+    }
+
+    private var timeMenu: some View {
+        Menu {
+            ForEach(AppModel.TimeFormatPreference.allCases) { preference in
+                Button {
+                    model.timeFormatPreference = preference
+                } label: {
+                    Text(preference.title)
+                }
+            }
+        } label: {
+            Text(model.timeFormatPreference.title)
                 .frame(minWidth: 132, alignment: .leading)
         }
     }
@@ -363,13 +395,13 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .general:
-            "gearshape"
+            "gearshape.fill"
         case .notifications:
-            "bell"
+            "bell.fill"
         case .updates:
             "arrow.triangle.2.circlepath"
         case .about:
-            "info.circle"
+            "info.circle.fill"
         }
     }
 }
@@ -383,10 +415,21 @@ private struct ThemePreferenceLabel: View {
         } icon: {
             Image(systemName: preference.symbolName)
                 .font(.system(size: 13, weight: .regular))
-                .symbolRenderingMode(.monochrome)
+                .swifteaSymbolStyle(symbolColor)
                 .frame(width: 18, alignment: .center)
         }
         .font(.body)
+    }
+
+    private var symbolColor: Color {
+        switch preference {
+        case .system:
+            SwifteaSymbolColor.neutral
+        case .light:
+            SwifteaSymbolColor.orange
+        case .dark:
+            SwifteaSymbolColor.blue
+        }
     }
 }
 
@@ -417,10 +460,11 @@ private struct SettingsWindowFitter: NSViewRepresentable {
             window.backgroundColor = .windowBackgroundColor
             window.contentView?.layoutSubtreeIfNeeded()
             let fittingSize = window.contentView?.fittingSize ?? .zero
-            guard fittingSize.height > 0 else { return }
+            let measuredHeight = selectedPaneHeight ?? fittingSize.height
+            guard measuredHeight > 0 else { return }
 
             let screenFrame = (window.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1024, height: 720)
-            let targetContentHeight = min(ceil(fittingSize.height), screenFrame.height - 96)
+            let targetContentHeight = min(ceil(measuredHeight), screenFrame.height - 96)
             let currentContentSize = window.contentRect(forFrameRect: window.frame).size
             guard abs(currentContentSize.height - targetContentHeight) > 1 else { return }
 

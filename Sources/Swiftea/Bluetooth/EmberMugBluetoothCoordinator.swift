@@ -86,11 +86,31 @@ final class EmberMugBluetoothCoordinator: NSObject {
             }
         }
 
+        func allowsNameOnlyMatch(for identifier: UUID) -> Bool {
+            switch self {
+            case let .autoConnect(identifiers):
+                identifiers.contains(identifier)
+            case let .preferred(identifierToFind):
+                identifier == identifierToFind
+            case .discovery, .manual:
+                false
+            }
+        }
+
         var isContinuousDiscovery: Bool {
             if case .discovery = self {
                 return true
             }
             return false
+        }
+
+        var scanServiceFilter: [CBUUID]? {
+            switch self {
+            case .discovery, .manual:
+                EmberAdvertisementParser.discoveryServiceUUIDs
+            case .autoConnect, .preferred:
+                nil
+            }
         }
     }
 
@@ -138,10 +158,14 @@ final class EmberMugBluetoothCoordinator: NSObject {
         )
     }
 
+    func recoverAutoConnectMugs() {
+        recoverExistingConnectionsAndAutoConnectIfPossible()
+    }
+
     func connectToCandidate(identifier: String) {
         guard let uuid = UUID(uuidString: identifier), let candidate = discoveredCandidates[uuid] else {
             globalDetailMessage = "That mug is no longer available. Try scanning again."
-            AppLog.bluetooth.error("Explicit connect requested for unknown candidate \(identifier, privacy: .public).")
+            AppLog.bluetooth.error("Explicit connect requested for unknown candidate \(identifier, privacy: .private).")
             publishGlobalSnapshot()
             return
         }
@@ -286,10 +310,10 @@ final class EmberMugBluetoothCoordinator: NSObject {
         if let clampedCelsius {
             let targetLabel = Self.targetTemperatureLabel(for: clampedCelsius)
             session.detailMessage = "Sending a new target temperature of \(targetLabel) °C."
-            AppLog.bluetooth.info("Writing target temperature \(clampedCelsius, format: .fixed(precision: 1)) C to mug \(session.identifier.uuidString, privacy: .public).")
+            AppLog.bluetooth.info("Writing target temperature \(clampedCelsius, format: .fixed(precision: 1)) C to mug \(session.identifier.uuidString, privacy: .private).")
         } else {
             session.detailMessage = "Turning temperature control off."
-            AppLog.bluetooth.info("Writing a zero target temperature to turn heating off for mug \(session.identifier.uuidString, privacy: .public).")
+            AppLog.bluetooth.info("Writing a zero target temperature to turn heating off for mug \(session.identifier.uuidString, privacy: .private).")
         }
 
         publishSnapshot(for: session)
@@ -383,7 +407,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
         }
 
         AppLog.bluetooth.info("Starting Ember scan.")
-        central.scanForPeripherals(withServices: nil, options: [
+        central.scanForPeripherals(withServices: mode.scanServiceFilter, options: [
             CBCentralManagerScanOptionAllowDuplicatesKey: false
         ])
         if !mode.isContinuousDiscovery {
@@ -430,7 +454,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
         sessionsByIdentifier[peripheral.identifier] = session
 
         AppLog.bluetooth.info(
-            "Discovered mug \(session.name, privacy: .public) with finish \(session.finish?.rawValue ?? "unknown", privacy: .public) and size \(session.size?.rawValue ?? "unknown", privacy: .public). Attempting connection."
+            "Discovered mug \(session.name, privacy: .private) with finish \(session.finish?.rawValue ?? "unknown", privacy: .private) and size \(session.size?.rawValue ?? "unknown", privacy: .private). Attempting connection."
         )
 
         central?.connect(peripheral)
@@ -580,7 +604,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
             guard let self, let session else { return }
             guard session.phase == .connecting else { return }
 
-            AppLog.bluetooth.error("Connection attempt timed out for \(session.name, privacy: .public).")
+            AppLog.bluetooth.error("Connection attempt timed out for \(session.name, privacy: .private).")
             session.phase = .failed
             session.detailMessage = self.timeoutDetailMessage(for: session)
             self.central?.cancelPeripheralConnection(session.peripheral)
@@ -761,7 +785,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
                 session.liquidStateDescription = liquidState.description
                 session.isEmpty = liquidState.impliesEmpty
                 session.lastReadingAt = Date()
-                AppLog.bluetooth.debug("Updated liquid state to \(liquidState.description, privacy: .public).")
+                AppLog.bluetooth.debug("Updated liquid state to \(liquidState.description, privacy: .private).")
             }
         case EmberGATT.battery:
             if let data = characteristic.value, let parsedBattery = Self.battery(from: data) {
@@ -776,7 +800,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
             if let data = characteristic.value, let parsedSerialNumber = Self.serialNumber(from: data) {
                 session.serialNumber = parsedSerialNumber
                 session.lastReadingAt = Date()
-                AppLog.bluetooth.debug("Updated serial number to \(parsedSerialNumber, privacy: .public).")
+                AppLog.bluetooth.debug("Updated serial number to \(parsedSerialNumber, privacy: .private).")
             }
         case EmberGATT.pushEvent:
             if let data = characteristic.value {
@@ -789,7 +813,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
 
     private func handlePushEvent(_ data: Data, from characteristic: CBCharacteristic, for session: MugPeripheralSession) {
         guard let eventByte = data.first, let event = PushEventID(rawValue: eventByte) else {
-            AppLog.bluetooth.debug("Received unknown push event payload: \(data as NSData, privacy: .public)")
+            AppLog.bluetooth.debug("Received unknown push event payload: \(data as NSData, privacy: .private)")
             return
         }
 
@@ -919,43 +943,32 @@ final class EmberMugBluetoothCoordinator: NSObject {
     }
 
     private static func likelyEmberName(from peripheral: CBPeripheral, advertisementData: [String: Any]) -> String? {
-        if let advertisedLocalName = advertisementData[CBAdvertisementDataLocalNameKey] as? String, isLikelyEmberName(advertisedLocalName) {
-            return advertisedLocalName
-        }
-
-        if let peripheralName = peripheral.name, isLikelyEmberName(peripheralName) {
-            return peripheralName
-        }
-
-        return nil
+        EmberAdvertisementParser.likelyName(from: advertisementData, peripheralName: peripheral.name)
     }
 
     private static func advertisedServiceUUIDs(from advertisementData: [String: Any]) -> [CBUUID] {
-        (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID]) ?? []
+        EmberAdvertisementParser.serviceUUIDs(from: advertisementData)
     }
 
-    private static func isLikelyEmberAdvertisement(for peripheral: CBPeripheral, advertisementData: [String: Any]) -> Bool {
-        if let advertisedName = likelyEmberName(from: peripheral, advertisementData: advertisementData) {
-            return advertisedName.localizedCaseInsensitiveContains("ember")
+    nonisolated static func shouldRegisterDiscoveredCandidate(
+        trust: EmberAdvertisementTrust,
+        isSavedTarget: Bool
+    ) -> Bool {
+        switch trust {
+        case .serviceBacked:
+            true
+        case .nameOnly:
+            isSavedTarget
+        case .unrelated:
+            false
         }
-
-        return !advertisedServiceUUIDs(from: advertisementData)
-            .filter { $0.uuidString.uppercased().hasPrefix("FC54") }
-            .isEmpty
     }
 
-    private static func isLikelyEmberName(_ name: String) -> Bool {
-        name.localizedCaseInsensitiveContains("ember")
-            || name.localizedCaseInsensitiveContains("mug")
-    }
-
-    private static func temperature(from data: Data) -> Double? {
+    nonisolated static func temperature(from data: Data) -> Double? {
         guard data.count >= 2 else { return nil }
 
-        let value = data.withUnsafeBytes { rawBuffer -> UInt16 in
-            rawBuffer.load(as: UInt16.self)
-        }
-        return Double(UInt16(littleEndian: value)) / 100
+        let rawValue = UInt16(data[0]) | (UInt16(data[1]) << 8)
+        return Double(rawValue) / 100
     }
 
     private static func battery(from data: Data) -> (level: Double, isCharging: Bool)? {
@@ -1088,7 +1101,13 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
-        guard Self.isLikelyEmberAdvertisement(for: peripheral, advertisementData: advertisementData) else {
+        let trust = EmberAdvertisementParser.trust(from: advertisementData, peripheralName: peripheral.name)
+        let isSavedTarget = activeScanMode?.allowsNameOnlyMatch(for: peripheral.identifier) ?? false
+
+        guard Self.shouldRegisterDiscoveredCandidate(trust: trust, isSavedTarget: isSavedTarget) else {
+            if trust == .nameOnly {
+                AppLog.bluetooth.debug("Ignoring name-only Ember candidate without service-backed advertisement evidence.")
+            }
             return
         }
 
@@ -1105,7 +1124,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         let advertisedSize = EmberAdvertisementParser.size(from: advertisementData)
         let advertisedServices = Self.advertisedServiceUUIDs(from: advertisementData).map(\.uuidString).joined(separator: ", ")
         AppLog.bluetooth.info(
-            "Discovered likely Ember peripheral \(advertisedName, privacy: .public). Finish: \(advertisedFinish?.rawValue ?? "unknown", privacy: .public). Size: \(advertisedSize?.rawValue ?? "unknown", privacy: .public). Services: \(advertisedServices, privacy: .public)"
+            "Discovered likely Ember peripheral \(advertisedName, privacy: .private). Finish: \(advertisedFinish?.rawValue ?? "unknown", privacy: .private). Size: \(advertisedSize?.rawValue ?? "unknown", privacy: .private). Services: \(advertisedServices, privacy: .private)"
         )
 
         let candidate = CandidateRecord(
@@ -1137,7 +1156,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         session.lastConnectedAt = Date()
         session.detailMessage = "Connected to \(session.name). Reading live mug data."
         sessionsByIdentifier[peripheral.identifier] = session
-        AppLog.bluetooth.info("Connected to mug \(session.name, privacy: .public). Discovering services.")
+        AppLog.bluetooth.info("Connected to mug \(session.name, privacy: .private). Discovering services.")
         peripheral.delegate = self
         peripheral.discoverServices([EmberGATT.service])
         scheduleConnectionTimeout(for: session)
@@ -1156,9 +1175,9 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         session?.phase = .failed
         session?.detailMessage = "Could not connect to \(peripheral.name ?? "your mug"). Try scanning again."
         if let error {
-            AppLog.bluetooth.error("Failed to connect to mug \(peripheral.name ?? "unknown", privacy: .public): \(error.localizedDescription, privacy: .public)")
+            AppLog.bluetooth.error("Failed to connect to mug \(peripheral.name ?? "unknown", privacy: .private): \(error.localizedDescription, privacy: .private)")
         } else {
-            AppLog.bluetooth.error("Failed to connect to mug \(peripheral.name ?? "unknown", privacy: .public).")
+            AppLog.bluetooth.error("Failed to connect to mug \(peripheral.name ?? "unknown", privacy: .private).")
         }
         publishSnapshot(for: session)
         continueAutoConnectScanIfNeeded()
@@ -1175,9 +1194,9 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         session?.phase = .disconnected
         session?.detailMessage = "Connection lost. You can retry the scan whenever you are ready."
         if let error {
-            AppLog.bluetooth.notice("Disconnected from mug \(peripheral.name ?? "unknown", privacy: .public): \(error.localizedDescription, privacy: .public)")
+            AppLog.bluetooth.notice("Disconnected from mug \(peripheral.name ?? "unknown", privacy: .private): \(error.localizedDescription, privacy: .private)")
         } else {
-            AppLog.bluetooth.notice("Disconnected from mug \(peripheral.name ?? "unknown", privacy: .public).")
+            AppLog.bluetooth.notice("Disconnected from mug \(peripheral.name ?? "unknown", privacy: .private).")
         }
         publishSnapshot(for: session)
     }
@@ -1196,7 +1215,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBPeripheralDelegate {
             return
         }
 
-        AppLog.bluetooth.info("Discovered services for mug \(session.name, privacy: .public).")
+        AppLog.bluetooth.info("Discovered services for mug \(session.name, privacy: .private).")
         for service in peripheral.services ?? [] where service.uuid == EmberGATT.service {
             peripheral.discoverCharacteristics([
                 EmberGATT.currentTemperature,
@@ -1305,11 +1324,11 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBPeripheralDelegate {
         error: (any Error)?
     ) {
         if let error {
-            AppLog.bluetooth.error("Notification state update failed for characteristic \(characteristic.uuid.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            AppLog.bluetooth.error("Notification state update failed for characteristic \(characteristic.uuid.uuidString, privacy: .private): \(error.localizedDescription, privacy: .private)")
             return
         }
 
-        AppLog.bluetooth.debug("Notification state updated for characteristic \(characteristic.uuid.uuidString, privacy: .public). Notifying: \(characteristic.isNotifying).")
+        AppLog.bluetooth.debug("Notification state updated for characteristic \(characteristic.uuid.uuidString, privacy: .private). Notifying: \(characteristic.isNotifying).")
     }
 
     private static func targetTemperatureLabel(for celsius: Double) -> String {

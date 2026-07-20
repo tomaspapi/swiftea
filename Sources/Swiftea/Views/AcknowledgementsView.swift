@@ -181,11 +181,12 @@ private struct AcknowledgementLink: View {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(title)
                             .font(.body.weight(.medium))
+                            .foregroundStyle(Color(nsColor: .linkColor))
 
                         Image(systemName: "arrow.up.right")
                             .font(.caption2.weight(.semibold))
+                            .swifteaSymbolStyle(SwifteaSymbolColor.link)
                     }
-                    .foregroundStyle(Color(nsColor: .linkColor))
                 }
                 .buttonStyle(.plain)
                 .onHover { hovering in

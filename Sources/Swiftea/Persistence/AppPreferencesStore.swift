@@ -19,9 +19,11 @@ enum AppPreferencesKey {
     static let selectedMugIdentifier = "swiftea.selectedMugIdentifier"
     static let savedMugIdentifiers = "swiftea.savedMugIdentifiers"
     static let autoConnectMugIdentifiers = "swiftea.autoConnectMugIdentifiers"
+    static let manuallyDisconnectedMugIdentifiers = "swiftea.manuallyDisconnectedMugIdentifiers"
     static let savedMugNames = "swiftea.savedMugNames"
     static let themePreference = "swiftea.themePreference"
     static let temperatureUnitPreference = "swiftea.temperatureUnitPreference"
+    static let timeFormatPreference = "swiftea.timeFormatPreference"
     static let chartTimeframePreference = "swiftea.chartTimeframePreference"
     static let keepsRunningWhenWindowClosed = "swiftea.keepsRunningWhenWindowClosed"
     static let appLocationPreference = "swiftea.appLocationPreference"
@@ -29,6 +31,11 @@ enum AppPreferencesKey {
     static let batteryFullyChargedNotificationsEnabled = "swiftea.batteryFullyChargedNotificationsEnabled"
     static let batteryFullyDischargedNotificationsEnabled = "swiftea.batteryFullyDischargedNotificationsEnabled"
     static let lastPresentedChangelogVersion = "swiftea.lastPresentedChangelogVersion"
+    static let hasCompletedOnboarding = "swiftea.hasCompletedOnboarding"
+    static let acceptedTermsVersion = "swiftea.acceptedTermsVersion"
+    static let acceptedTermsDate = "swiftea.acceptedTermsDate"
+    static let acceptedSafetyNoticeVersion = "swiftea.acceptedSafetyNoticeVersion"
+    static let acceptedSafetyNoticeDate = "swiftea.acceptedSafetyNoticeDate"
 }
 
 @MainActor

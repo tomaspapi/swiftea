@@ -50,8 +50,12 @@ final class UpdateController {
     }
 
     private static func hasRequiredSparkleConfiguration(in bundle: Bundle) -> Bool {
+        hasRequiredSparkleConfiguration(in: bundle.infoDictionary ?? [:])
+    }
+
+    nonisolated static func hasRequiredSparkleConfiguration(in infoDictionary: [String: Any]) -> Bool {
         guard
-            let feedURLString = bundle.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+            let feedURLString = stringValue(for: "SUFeedURL", in: infoDictionary),
             let feedURL = URL(string: feedURLString),
             feedURL.scheme == "https",
             !feedURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -60,13 +64,53 @@ final class UpdateController {
         }
 
         guard
-            let publicKey = bundle.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+            let publicKey = stringValue(for: "SUPublicEDKey", in: infoDictionary),
             !publicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
             return false
         }
 
+        guard
+            boolValue(for: "SURequireSignedFeed", in: infoDictionary),
+            boolValue(for: "SUVerifyUpdateBeforeExtraction", in: infoDictionary),
+            numberValue(for: "SUSignedFeedFailureExpirationInterval", in: infoDictionary) == 0
+        else {
+            return false
+        }
+
         return true
+    }
+
+    private nonisolated static func stringValue(for key: String, in infoDictionary: [String: Any]) -> String? {
+        infoDictionary[key] as? String
+    }
+
+    private nonisolated static func boolValue(for key: String, in infoDictionary: [String: Any]) -> Bool {
+        switch infoDictionary[key] {
+        case let value as Bool:
+            return value
+        case let value as NSNumber:
+            return value.boolValue
+        case let value as String:
+            return ["1", "true", "yes"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        default:
+            return false
+        }
+    }
+
+    private nonisolated static func numberValue(for key: String, in infoDictionary: [String: Any]) -> Double? {
+        switch infoDictionary[key] {
+        case let value as Double:
+            return value
+        case let value as Int:
+            return Double(value)
+        case let value as NSNumber:
+            return value.doubleValue
+        case let value as String:
+            return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
     }
 
     private static func currentVersionDescription(in bundle: Bundle) -> String {

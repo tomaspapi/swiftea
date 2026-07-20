@@ -23,13 +23,56 @@ enum EmberMugSize: String, Equatable {
     case ounce16 = "16 oz"
 }
 
+enum EmberAdvertisementTrust: Equatable {
+    case serviceBacked
+    case nameOnly
+    case unrelated
+}
+
 enum EmberAdvertisementParser {
     private static let emberManufacturerID: UInt16 = 0x03C1
     private static let testingManufacturerID: UInt16 = 0xFFFF
+    private static let mainServiceUUID = "FC543622-236C-4C94-8FA9-944A3E5353FA"
     private static let travelMugServiceUUIDs: Set<String> = [
         "FC543621-236C-4C94-8FA9-944A3E5353FA",
         "FC5421A1-236C-4C94-8FA9-944A3E5353FA"
     ]
+    private static let knownServiceUUIDs: Set<String> = travelMugServiceUUIDs.union([mainServiceUUID])
+
+    static var discoveryServiceUUIDs: [CBUUID] {
+        knownServiceUUIDs
+            .sorted()
+            .map(CBUUID.init(string:))
+    }
+
+    static func trust(from advertisementData: [String: Any], peripheralName: String?) -> EmberAdvertisementTrust {
+        if hasEmberServiceEvidence(in: advertisementData) {
+            return .serviceBacked
+        }
+
+        if likelyName(from: advertisementData, peripheralName: peripheralName) != nil {
+            return .nameOnly
+        }
+
+        return .unrelated
+    }
+
+    static func likelyName(from advertisementData: [String: Any], peripheralName: String?) -> String? {
+        if let advertisedLocalName = advertisementData[CBAdvertisementDataLocalNameKey] as? String,
+           isLikelyEmberName(advertisedLocalName) {
+            return advertisedLocalName
+        }
+
+        if let peripheralName, isLikelyEmberName(peripheralName) {
+            return peripheralName
+        }
+
+        return nil
+    }
+
+    static func serviceUUIDs(from advertisementData: [String: Any]) -> [CBUUID] {
+        (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID]) ?? []
+    }
 
     static func finish(from advertisementData: [String: Any]) -> EmberMugFinish? {
         guard let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data else {
@@ -88,14 +131,49 @@ enum EmberAdvertisementParser {
     private static func emberModelData(fromManufacturerData manufacturerData: Data) -> Data? {
         guard manufacturerData.count > 2 else { return nil }
 
-        let manufacturerID = UInt16(manufacturerData[manufacturerData.startIndex])
-        | (UInt16(manufacturerData[manufacturerData.index(after: manufacturerData.startIndex)]) << 8)
+        let manufacturerID = manufacturerID(from: manufacturerData)
 
         guard manufacturerID == emberManufacturerID || manufacturerID == testingManufacturerID else {
             return nil
         }
 
         return Data(manufacturerData.dropFirst(2))
+    }
+
+    private static func hasEmberServiceEvidence(in advertisementData: [String: Any]) -> Bool {
+        if let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
+           manufacturerID(from: manufacturerData) == emberManufacturerID {
+            return true
+        }
+
+        if serviceUUIDs(from: advertisementData).contains(where: isEmberServiceUUID) {
+            return true
+        }
+
+        if let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data],
+           serviceData.keys.contains(where: isEmberServiceUUID) {
+            return true
+        }
+
+        return false
+    }
+
+    private static func manufacturerID(from manufacturerData: Data) -> UInt16? {
+        guard manufacturerData.count > 2 else { return nil }
+
+        return UInt16(manufacturerData[manufacturerData.startIndex])
+            | (UInt16(manufacturerData[manufacturerData.index(after: manufacturerData.startIndex)]) << 8)
+    }
+
+    private static func isEmberServiceUUID(_ uuid: CBUUID) -> Bool {
+        let normalizedUUID = uuid.uuidString.uppercased()
+        return knownServiceUUIDs.contains(normalizedUUID)
+            || normalizedUUID.hasPrefix("FC54")
+    }
+
+    private static func isLikelyEmberName(_ name: String) -> Bool {
+        name.localizedCaseInsensitiveContains("ember")
+            || name.localizedCaseInsensitiveContains("mug")
     }
 
     private static func size(fromLegacyModelID modelID: Int, serviceUUIDs: [String]) -> EmberMugSize? {

@@ -22,7 +22,7 @@ struct TemperatureSummaryCard: View {
     }
 
     var body: some View {
-        GroupBox {
+        DashboardCard {
             cardContent
         }
             .animation(.snappy(duration: 0.34, extraBounce: 0.05), value: statusPresentation)
@@ -41,7 +41,7 @@ struct TemperatureSummaryCard: View {
                 .frame(height: 18)
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 10)
+        .padding(.vertical, 16)
     }
 
     private var titleColor: Color {
@@ -73,8 +73,7 @@ struct TemperatureSummaryCard: View {
         case .idle:
             Image(systemName: "pause.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color(nsColor: .disabledControlTextColor))
-                .symbolRenderingMode(.monochrome)
+                .swifteaSymbolStyle(SwifteaSymbolColor.muted)
         case .empty:
             Text("Mug is currently empty")
                 .font(.caption.weight(.semibold))

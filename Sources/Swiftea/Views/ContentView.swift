@@ -41,18 +41,20 @@ struct ContentView: View {
                 Button {
                     openSettings()
                 } label: {
-                    Label("Settings", systemImage: "gearshape")
-                        .labelStyle(.iconOnly)
+                    Image(systemName: "gearshape.fill")
+                        .swifteaSymbolStyle()
                 }
                 .help("Settings")
+                .accessibilityLabel("Settings")
 
                 Button {
                     openWindow(id: "discovery")
                 } label: {
-                    Label("Discover New Mug", systemImage: "plus")
-                        .labelStyle(.iconOnly)
+                    Image(systemName: "plus")
+                        .swifteaSymbolStyle()
                 }
                 .help("Discover New Mug")
+                .accessibilityLabel("Discover New Mug")
                 .disabled(!model.canOpenDiscoveryWindow)
             }
         }
@@ -67,7 +69,7 @@ private struct EmptyMugDashboardView: View {
         VStack(spacing: 12) {
             Image(systemName: "mug.fill")
                 .font(.system(size: 42, weight: .regular))
-                .foregroundStyle(.tertiary)
+                .swifteaSymbolStyle(SwifteaSymbolColor.muted)
 
             Text("Connect to a mug to get started")
                 .font(.title3.weight(.semibold))

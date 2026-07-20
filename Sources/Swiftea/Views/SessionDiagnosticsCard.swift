@@ -11,8 +11,8 @@ struct SessionDiagnosticsCard: View {
                     Divider()
 
                     VStack(alignment: .leading, spacing: 10) {
-                        StateDetailRow(title: "Bluetooth ID", value: model.bluetoothIdentifierLabel)
-                        StateDetailRow(title: "Serial number", value: model.serialNumberLabel)
+                        StateDetailRow(title: "Bluetooth ID", value: privateDiagnosticValue(for: model.bluetoothIdentifierLabel))
+                        StateDetailRow(title: "Serial number", value: privateDiagnosticValue(for: model.serialNumberLabel))
                         StateDetailRow(title: "Current temperature path", value: model.currentTemperaturePathLabel)
                         StateDetailRow(title: "Target temperature path", value: model.targetTemperaturePathLabel)
                         StateDetailRow(title: "Battery path", value: model.batteryPathLabel)
@@ -36,6 +36,10 @@ struct SessionDiagnosticsCard: View {
                 }
             }
         }
+    }
+
+    private func privateDiagnosticValue(for value: String) -> String {
+        value == "Unavailable" ? value : "Hidden"
     }
 }
 

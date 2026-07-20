@@ -4,6 +4,25 @@ import Observation
 import OSLog
 
 @MainActor
+protocol EmberMugBluetoothCoordinating: AnyObject {
+    func retryScan()
+    func setPreferredPeripheralIdentifier(_ identifier: String?)
+    func setAutoConnectPeripheralIdentifiers(_ identifiers: [String])
+    func recoverAutoConnectMugs()
+    func connectToCandidate(identifier: String)
+    func stopDiscoveryScan()
+    func scanForPreferredMug()
+    func disconnectMug(identifier: String)
+    func forgetMug(identifier: String)
+    func startDiscoveryScan(excluding identifiers: [String])
+    func refreshReadings()
+    func refreshReadings(for identifier: String?)
+    func setTargetTemperature(_ celsius: Double?, for identifier: String?)
+}
+
+extension EmberMugBluetoothCoordinator: EmberMugBluetoothCoordinating {}
+
+@MainActor
 @Observable
 final class AppModel {
     private struct PendingHeatingTransition {
@@ -76,21 +95,21 @@ final class AppModel {
             case .starting:
                 "antenna.radiowaves.left.and.right"
             case .permissionNeeded:
-                "lock.shield"
+                "lock.shield.fill"
             case .bluetoothUnavailable:
-                "bolt.horizontal.circle"
+                "bolt.horizontal"
             case .scanning:
                 "magnifyingglass"
             case .choosing:
-                "list.bullet.rectangle"
+                "list.bullet.rectangle.fill"
             case .connecting:
                 "dot.radiowaves.left.and.right"
             case .connected:
-                "checkmark.circle"
+                "checkmark.circle.fill"
             case .disconnected:
                 "wifi.slash"
             case .error:
-                "exclamationmark.triangle"
+                "exclamationmark.triangle.fill"
             }
         }
     }
@@ -110,7 +129,7 @@ final class AppModel {
     private struct InitialHeatingSafetyState {
         var peripheralIdentifier: String?
         var isAwaitingContentsDecision = false
-        var didWriteSafetyOff = false
+        var didBeginSafety = false
     }
 
     private struct MugSessionState {
@@ -180,11 +199,11 @@ final class AppModel {
         var symbolName: String {
             switch self {
             case .system:
-                "laptopcomputer"
+                "circle.lefthalf.filled"
             case .light:
-                "sun.max"
+                "sun.max.fill"
             case .dark:
-                "moon"
+                "moon.fill"
             }
         }
     }
@@ -211,6 +230,67 @@ final class AppModel {
             case .fahrenheit:
                 .fahrenheit
             }
+        }
+    }
+
+    enum TimeFormatPreference: String, CaseIterable, Identifiable {
+        case twentyFourHour
+        case twelveHour
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .twentyFourHour:
+                "24-hour"
+            case .twelveHour:
+                "12-hour (am/pm)"
+            }
+        }
+
+        var chartXAxisLabelWidth: CGFloat {
+            40
+        }
+
+        var chartXAxisLabelFontSize: CGFloat {
+            switch self {
+            case .twentyFourHour:
+                10
+            case .twelveHour:
+                9
+            }
+        }
+
+        var chartXAxisMeridiemLabelFontSize: CGFloat {
+            max(chartXAxisLabelFontSize - 1, 1)
+        }
+    }
+
+    struct SystemPreferenceDefaults: Equatable {
+        let temperatureUnitPreference: TemperatureUnitPreference
+        let timeFormatPreference: TimeFormatPreference
+
+        static let stableTesting = SystemPreferenceDefaults(
+            temperatureUnitPreference: .celsius,
+            timeFormatPreference: .twentyFourHour
+        )
+
+        static func current(locale: Locale = .autoupdatingCurrent) -> SystemPreferenceDefaults {
+            SystemPreferenceDefaults(
+                temperatureUnitPreference: defaultTemperatureUnit(for: locale),
+                timeFormatPreference: defaultTimeFormat(for: locale)
+            )
+        }
+
+        private static func defaultTemperatureUnit(for locale: Locale) -> TemperatureUnitPreference {
+            locale.measurementSystem == .us ? .fahrenheit : .celsius
+        }
+
+        private static func defaultTimeFormat(for locale: Locale) -> TimeFormatPreference {
+            let hourFormat = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: locale) ?? ""
+            return hourFormat.contains("a") || hourFormat.contains("h") || hourFormat.contains("K")
+                ? .twelveHour
+                : .twentyFourHour
         }
     }
 
@@ -396,7 +476,8 @@ final class AppModel {
         var didNotifyFullyDischarged = false
     }
 
-    @ObservationIgnored private var bluetoothCoordinator: EmberMugBluetoothCoordinator?
+    @ObservationIgnored private var bluetoothCoordinator: (any EmberMugBluetoothCoordinating)?
+    @ObservationIgnored private var deferredBluetoothCoordinator: (any EmberMugBluetoothCoordinating)?
     @ObservationIgnored private let preferences: AppPreferencesStore
     @ObservationIgnored private let mugHistoryStore: any MugHistoryStoring
     @ObservationIgnored private let targetTemperatureNotifier: any TargetTemperatureNotificationDelivering
@@ -409,9 +490,13 @@ final class AppModel {
     @ObservationIgnored private var rawDiscoveredMugs: [BluetoothRuntimeSnapshot.DiscoveredMug] = []
     @ObservationIgnored private var deviceBluetoothName: String?
     @ObservationIgnored private var savedMugNamesByIdentifier: [String: String] = [:]
+    @ObservationIgnored private var manuallyDisconnectedMugIdentifiers: Set<String> = []
     @ObservationIgnored private var targetTemperatureDraftsByMug: [String: Double] = [:]
+    @ObservationIgnored private var userChosenTargetTemperatureDraftIdentifiers: Set<String> = []
+    @ObservationIgnored private var hasUserChosenGlobalTargetTemperatureDraft = false
     @ObservationIgnored private var pendingHeatingTransitionByMug: [String: PendingHeatingTransition] = [:]
     @ObservationIgnored private var localHeatingIntentByMug: [String: LocalHeatingIntent] = [:]
+    @ObservationIgnored private var pendingStandaloneHeatingRearmTargetByMug: [String: Double] = [:]
     @ObservationIgnored private var pendingTargetTemperatureCommitTaskByMug: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var pendingTemperatureControlCommitTaskByMug: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var initialHeatingSafetyByMug: [String: InitialHeatingSafetyState] = [:]
@@ -427,6 +512,9 @@ final class AppModel {
     @ObservationIgnored private var isDiscoveryWindowOpen = false
     @ObservationIgnored private var pendingDiscoveryConnectionIdentifiers: Set<String> = []
     @ObservationIgnored private var isRestoringSavedPreferences = false
+    @ObservationIgnored private let startsRuntimeWhenLegallyAuthorized: Bool
+    @ObservationIgnored private var hasStartedLegallyAuthorizedRuntime = false
+    @ObservationIgnored private var didPresentOnboardingThisSession = false
 
     private static let targetTemperatureRangeCelsius = 50.0 ... 62.0
     private static let targetTemperatureRangeFahrenheit = 122.0 ... 143.0
@@ -515,7 +603,14 @@ final class AppModel {
     var temperatureUnitPreference: TemperatureUnitPreference = .celsius {
         didSet {
             normalizeTargetTemperatureDraftForCurrentUnit()
+            guard !isRestoringSavedPreferences else { return }
             preferences.set(temperatureUnitPreference.rawValue, forKey: AppPreferencesKey.temperatureUnitPreference)
+        }
+    }
+    var timeFormatPreference: TimeFormatPreference = .twentyFourHour {
+        didSet {
+            guard !isRestoringSavedPreferences else { return }
+            preferences.set(timeFormatPreference.rawValue, forKey: AppPreferencesKey.timeFormatPreference)
         }
     }
     var chartTimeframePreference: ChartTimeframePreference = .threeHours {
@@ -559,6 +654,8 @@ final class AppModel {
     var isRequestingNotificationPermission = false
     var isPresentingNotificationPermissionAlert = false
     var notificationPermissionAlertMessage = ""
+    private(set) var shouldPresentOnboarding = false
+    private(set) var shouldStartOnboardingAtLegalAgreement = false
     private(set) var shouldPresentUpdateChangelog = false
     private(set) var mugHistoryEvents: [MugHistoryEvent] = []
     var canReadCurrentTemperature = false
@@ -599,6 +696,17 @@ final class AppModel {
         set {
             guard let transientMugIdentifier else { return }
             localHeatingIntentByMug[transientMugIdentifier] = newValue
+        }
+    }
+
+    private var pendingStandaloneHeatingRearmTarget: Double? {
+        get {
+            guard let transientMugIdentifier else { return nil }
+            return pendingStandaloneHeatingRearmTargetByMug[transientMugIdentifier]
+        }
+        set {
+            guard let transientMugIdentifier else { return }
+            pendingStandaloneHeatingRearmTargetByMug[transientMugIdentifier] = newValue
         }
     }
 
@@ -650,15 +758,15 @@ final class AppModel {
         }
     }
 
-    private var didWriteInitialHeatingSafetyOff: Bool {
+    private var didBeginInitialHeatingSafety: Bool {
         get {
             guard let transientMugIdentifier else { return false }
-            return initialHeatingSafetyByMug[transientMugIdentifier]?.didWriteSafetyOff ?? false
+            return initialHeatingSafetyByMug[transientMugIdentifier]?.didBeginSafety ?? false
         }
         set {
             guard let transientMugIdentifier else { return }
             var state = initialHeatingSafetyByMug[transientMugIdentifier] ?? InitialHeatingSafetyState()
-            state.didWriteSafetyOff = newValue
+            state.didBeginSafety = newValue
             initialHeatingSafetyByMug[transientMugIdentifier] = state
         }
     }
@@ -685,14 +793,17 @@ final class AppModel {
         targetTemperatureNotifier: (any TargetTemperatureNotificationDelivering)? = nil,
         idleSleepPreventionManager: (any IdleSleepPreventionManaging)? = nil,
         mugHistoryStore: (any MugHistoryStoring)? = nil,
+        bluetoothCoordinator: (any EmberMugBluetoothCoordinating)? = nil,
         appSessionID: UUID = UUID(),
         appVersionIdentifier: String = AppVersion.currentIdentifier(),
+        systemPreferenceDefaults: SystemPreferenceDefaults? = nil,
         nowProvider: @escaping () -> Date = Date.init
     ) {
         self.preferences = preferences
         self.mugHistoryStore = mugHistoryStore ?? (startBluetooth ? MugHistoryFileStore.shared : InMemoryMugHistoryStore())
         self.appSessionID = appSessionID
         self.appVersionIdentifier = appVersionIdentifier
+        self.startsRuntimeWhenLegallyAuthorized = startBluetooth
         self.nowProvider = nowProvider
         self.heatingToggleSoundPlayer = heatingToggleSoundPlayer
             ?? (startBluetooth ? NativeHeatingToggleSoundPlayer.shared : SilentHeatingToggleSoundPlayer.shared)
@@ -700,28 +811,32 @@ final class AppModel {
             ?? (startBluetooth ? NativeTargetTemperatureNotificationCenter.shared : SilentTargetTemperatureNotificationCenter.shared)
         self.idleSleepPreventionManager = idleSleepPreventionManager
             ?? (startBluetooth ? NativeIdleSleepPreventionManager.shared : NoOpIdleSleepPreventionManager.shared)
-        restoreSavedPreferences()
-        restoreUpdateChangelogPresentationState()
-        installLifecycleObservers()
-        loadMugHistoryAndRecordSessionStart()
-
         if startBluetooth {
-            bluetoothCoordinator = EmberMugBluetoothCoordinator(
-                preferredPeripheralIdentifier: selectedMugIdentifier ?? preferredPeripheralIdentifier,
-                autoConnectPeripheralIdentifiers: autoConnectMugIdentifiers
-            ) { [weak self] snapshot in
-                Task { @MainActor in
-                    self?.apply(snapshot: snapshot)
-                }
-            }
+            self.bluetoothCoordinator = nil
+            self.deferredBluetoothCoordinator = bluetoothCoordinator
+        } else {
+            self.bluetoothCoordinator = bluetoothCoordinator
+            self.deferredBluetoothCoordinator = nil
+        }
+        let resolvedSystemPreferenceDefaults = systemPreferenceDefaults
+            ?? (startBluetooth ? .current() : .stableTesting)
+        isRestoringSavedPreferences = true
+        self.temperatureUnitPreference = resolvedSystemPreferenceDefaults.temperatureUnitPreference
+        self.timeFormatPreference = resolvedSystemPreferenceDefaults.timeFormatPreference
+        isRestoringSavedPreferences = false
+        restoreSavedPreferences()
+        restoreOnboardingPresentationState()
+        restoreUpdateChangelogPresentationState()
+        if startBluetooth {
+            startLegallyAuthorizedRuntimeIfNeeded()
+        } else {
+            installLifecycleObservers()
+            loadMugHistoryAndRecordSessionStart()
         }
     }
 
-    static func launchModel(
-        arguments: [String] = CommandLine.arguments,
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> AppModel {
-        return AppModel()
+    static func launchModel() -> AppModel {
+        AppModel()
     }
 
     var canAdjustTemperature: Bool {
@@ -734,6 +849,46 @@ final class AppModel {
         shouldPresentUpdateChangelog = false
         preferences.set(appVersionIdentifier, forKey: AppPreferencesKey.lastPresentedChangelogVersion)
         return true
+    }
+
+    func consumeOnboardingPresentation() -> Bool {
+        guard shouldPresentOnboarding, !didPresentOnboardingThisSession else { return false }
+
+        didPresentOnboardingThisSession = true
+        return true
+    }
+
+    var hasAcceptedCurrentTermsOfUse: Bool {
+        preferences.string(forKey: AppPreferencesKey.acceptedTermsVersion)
+            == SwifteaLegalDocuments.currentTermsVersion
+    }
+
+    var hasAcceptedCurrentSafetyNotice: Bool {
+        preferences.string(forKey: AppPreferencesKey.acceptedSafetyNoticeVersion)
+            == SwifteaLegalDocuments.currentSafetyNoticeVersion
+    }
+
+    var hasAcceptedCurrentLegalDocuments: Bool {
+        hasAcceptedCurrentTermsOfUse && hasAcceptedCurrentSafetyNotice
+    }
+
+    func acceptCurrentLegalDocumentsAndCompleteOnboarding() {
+        let acceptanceDate = ISO8601DateFormatter().string(from: nowProvider())
+
+        preferences.set(
+            SwifteaLegalDocuments.currentTermsVersion,
+            forKey: AppPreferencesKey.acceptedTermsVersion
+        )
+        preferences.set(acceptanceDate, forKey: AppPreferencesKey.acceptedTermsDate)
+        preferences.set(
+            SwifteaLegalDocuments.currentSafetyNoticeVersion,
+            forKey: AppPreferencesKey.acceptedSafetyNoticeVersion
+        )
+        preferences.set(acceptanceDate, forKey: AppPreferencesKey.acceptedSafetyNoticeDate)
+        shouldPresentOnboarding = false
+        shouldStartOnboardingAtLegalAgreement = false
+        preferences.set(true, forKey: AppPreferencesKey.hasCompletedOnboarding)
+        startLegallyAuthorizedRuntimeIfNeeded()
     }
 
     var activeHistoryMugIdentifier: String? {
@@ -896,6 +1051,10 @@ final class AppModel {
                 let rightDate = right.points.first?.timestamp ?? .distantPast
                 return leftDate < rightDate
             }
+    }
+
+    func historyChartTimeLabel(for date: Date) -> String {
+        Self.formatTime(date, preference: timeFormatPreference)
     }
 
     func historyChartYDomain(for metric: MugHistoryMetric) -> ClosedRange<Double> {
@@ -1295,7 +1454,7 @@ final class AppModel {
             return isEmpty ? "mug" : "drop.fill"
         }
 
-        return connectionState == .connected ? "drop" : "questionmark.circle"
+        return connectionState == .connected ? "drop.fill" : "questionmark.circle.fill"
     }
 
     var currentTemperaturePathLabel: String {
@@ -1382,12 +1541,13 @@ final class AppModel {
         selectMugIdentifier(mug.identifier, shouldPersistLegacyPreferred: true)
         addSavedMugIdentifier(mug.identifier)
         addAutoConnectMugIdentifier(mug.identifier)
+        clearManualDisconnectSuppression(for: mug.identifier)
         preferences.set(mug.name, forKey: AppPreferencesKey.lastKnownDeviceName)
         deviceName = mug.name
         deviceFinish = mug.finish
         deviceSize = mug.size
         bluetoothCoordinator?.setPreferredPeripheralIdentifier(mug.identifier)
-        bluetoothCoordinator?.setAutoConnectPeripheralIdentifiers(autoConnectMugIdentifiers)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
         bluetoothCoordinator?.connectToCandidate(identifier: mug.identifier)
     }
 
@@ -1401,6 +1561,8 @@ final class AppModel {
         discoveredMugs.removeAll { $0.identifier == mug.identifier }
         addSavedMugIdentifier(mug.identifier)
         addAutoConnectMugIdentifier(mug.identifier)
+        clearManualDisconnectSuppression(for: mug.identifier)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
 
         if shouldSelectMug {
             selectMugIdentifier(mug.identifier, shouldPersistLegacyPreferred: true)
@@ -1440,9 +1602,11 @@ final class AppModel {
     func connectSidebarMug(identifier: String) {
         guard canConnectSidebarMug(identifier: identifier) else { return }
         addSavedMugIdentifier(identifier)
+        clearManualDisconnectSuppression(for: identifier)
         selectMugIdentifier(identifier, shouldPersistLegacyPreferred: true)
         restoreSelectedMugState()
         bluetoothCoordinator?.setPreferredPeripheralIdentifier(identifier)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
         bluetoothCoordinator?.scanForPreferredMug()
     }
 
@@ -1453,15 +1617,18 @@ final class AppModel {
             guard canEnableAutoConnect(for: identifier) else { return }
             addSavedMugIdentifier(identifier)
             addAutoConnectMugIdentifier(identifier)
+            clearManualDisconnectSuppression(for: identifier)
         } else {
             removeAutoConnectMugIdentifier(identifier)
         }
 
-        bluetoothCoordinator?.setAutoConnectPeripheralIdentifiers(autoConnectMugIdentifiers)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
     }
 
     func disconnectSidebarMug(identifier: String) {
         guard mugSessionsByIdentifier[identifier]?.connectionState == .connected else { return }
+        markManualDisconnectSuppression(for: identifier)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
         bluetoothCoordinator?.disconnectMug(identifier: identifier)
         markMugDisconnectedLocally(identifier: identifier, detailMessage: "Disconnected.")
         selectConnectedDashboardMugIfNeeded()
@@ -1473,6 +1640,7 @@ final class AppModel {
 
         bluetoothCoordinator?.forgetMug(identifier: identifier)
         removeAutoConnectMugIdentifier(identifier)
+        clearManualDisconnectSuppression(for: identifier)
         removeSavedMugIdentifier(identifier)
         savedMugNamesByIdentifier.removeValue(forKey: identifier)
         persistSavedMugNames()
@@ -1499,24 +1667,24 @@ final class AppModel {
         }
 
         bluetoothCoordinator?.setPreferredPeripheralIdentifier(selectedMugIdentifier ?? preferredPeripheralIdentifier)
-        bluetoothCoordinator?.setAutoConnectPeripheralIdentifiers(autoConnectMugIdentifiers)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
         synchronizeIdleSleepPrevention()
     }
 
     func selectSidebarMug(identifier: String) {
         guard allSidebarMugIdentifiers.contains(identifier) else {
-            AppLog.sidebar.debug("Ignored sidebar selection for unknown mug \(identifier, privacy: .public)")
+            AppLog.sidebar.debug("Ignored sidebar selection for unknown mug \(identifier, privacy: .private)")
             return
         }
 
         let previousSelection = selectedMugIdentifier
         guard previousSelection != identifier else {
-            AppLog.sidebar.info("Ignored repeated sidebar selection for \(identifier, privacy: .public)")
+            AppLog.sidebar.info("Ignored repeated sidebar selection for \(identifier, privacy: .private)")
             return
         }
 
         AppLog.sidebar.info(
-            "Selected sidebar mug previous=\(previousSelection ?? "none", privacy: .public) next=\(identifier, privacy: .public)"
+            "Selected sidebar mug previous=\(previousSelection ?? "none", privacy: .private) next=\(identifier, privacy: .private)"
         )
 
         selectMugIdentifier(identifier, shouldPersistLegacyPreferred: true)
@@ -1534,7 +1702,7 @@ final class AppModel {
         preferences.set(knownName, forKey: AppPreferencesKey.lastKnownDeviceName)
 
         if canStartPreferredScan(for: identifier) {
-            AppLog.sidebar.info("Starting preferred mug scan after sidebar selection for \(identifier, privacy: .public)")
+            AppLog.sidebar.info("Starting preferred mug scan after sidebar selection for \(identifier, privacy: .private)")
             bluetoothCoordinator?.scanForPreferredMug()
         }
     }
@@ -1772,6 +1940,7 @@ final class AppModel {
 
         selectConnectedDashboardMugIfNeeded()
         restoreSelectedMugState()
+        reconnectAfterLostConnectionIfNeeded(for: mugIdentifier, snapshot: snapshot)
     }
 
     private func applySingleMugSnapshot(_ snapshot: BluetoothRuntimeSnapshot, snapshotReceivedAt: Date) {
@@ -1811,10 +1980,6 @@ final class AppModel {
 
         if isConnected {
             beginInitialHeatingSafetyIfNeeded(for: snapshot.activePeripheralIdentifier)
-            writeInitialHeatingSafetyOffIfNeeded(
-                canWriteTargetTemperature: snapshot.canWriteTargetTemperature,
-                isConnected: true
-            )
         }
 
         let didBecomeEmpty = previousIsEmpty != true && snapshot.isEmpty == true
@@ -1832,6 +1997,12 @@ final class AppModel {
                 )
             }
         }
+
+        rearmStandaloneHeatingForEmptyMugIfNeeded(
+            reportedTargetTemperatureCelsius: snapshot.targetTemperatureCelsius,
+            canWriteTargetTemperature: snapshot.canWriteTargetTemperature,
+            isConnected: isConnected
+        )
 
         if didBecomeNotEmpty || didReceiveInitialFullMugDecision {
             let didResumeHeating = automaticallyTurnHeatingOnForFilledMug(
@@ -1852,24 +2023,11 @@ final class AppModel {
         }
 
         if
-            !didBecomeEmpty,
             !isEditingTargetTemperature,
             let targetTemperatureCelsius = snapshot.targetTemperatureCelsius,
             !shouldIgnoreTargetReadBack(targetTemperatureCelsius)
         {
-            if targetTemperatureCelsius <= 0.01 {
-                setTemperatureControlStateFromReadBack(isEnabled: false)
-            } else {
-                setTemperatureControlStateFromReadBack(isEnabled: true)
-                targetTemperatureDraftCelsius = Self.normalizedTargetTemperatureCelsius(
-                    targetTemperatureCelsius,
-                    displayUnit: temperatureUnitPreference
-                )
-                if let transientMugIdentifier {
-                    targetTemperatureDraftsByMug[transientMugIdentifier] = targetTemperatureDraftCelsius
-                    persistTargetTemperatureDraftsByMug()
-                }
-            }
+            applyTargetTemperatureReadBack(targetTemperatureCelsius)
         }
 
         if let discoveredDeviceName = snapshot.discoveredDeviceName {
@@ -1940,6 +2098,24 @@ final class AppModel {
         Measurement(value: celsius, unit: UnitTemperature.celsius)
             .converted(to: unit.measurementUnit)
             .formatted(.measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0))))
+    }
+
+    static func formatTime(
+        _ date: Date,
+        preference: TimeFormatPreference,
+        timeZone: TimeZone = .autoupdatingCurrent,
+        locale: Locale = .autoupdatingCurrent
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = switch preference {
+        case .twentyFourHour:
+            "HH:mm"
+        case .twelveHour:
+            "h:mm\na"
+        }
+        return formatter.string(from: date).lowercased()
     }
 
     static func timestampLabel(for date: Date?, empty: String) -> String {
@@ -2178,6 +2354,7 @@ final class AppModel {
     private func removeRuntimeState(for identifier: String) {
         pendingHeatingTransitionByMug.removeValue(forKey: identifier)
         localHeatingIntentByMug.removeValue(forKey: identifier)
+        pendingStandaloneHeatingRearmTargetByMug.removeValue(forKey: identifier)
         pendingTargetTemperatureCommitTaskByMug[identifier]?.cancel()
         pendingTargetTemperatureCommitTaskByMug.removeValue(forKey: identifier)
         pendingTemperatureControlCommitTaskByMug[identifier]?.cancel()
@@ -2301,12 +2478,30 @@ final class AppModel {
         guard !autoConnectMugIdentifiers.contains(identifier) else { return }
         addSavedMugIdentifier(identifier)
         autoConnectMugIdentifiers = Array((autoConnectMugIdentifiers + [identifier]).prefix(EmberMugBluetoothCoordinator.maximumSimultaneousMugs))
-        bluetoothCoordinator?.setAutoConnectPeripheralIdentifiers(autoConnectMugIdentifiers)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
     }
 
     private func removeAutoConnectMugIdentifier(_ identifier: String) {
         autoConnectMugIdentifiers.removeAll { $0 == identifier }
-        bluetoothCoordinator?.setAutoConnectPeripheralIdentifiers(autoConnectMugIdentifiers)
+        synchronizeAutoConnectIdentifiersWithBluetooth()
+    }
+
+    private var reconnectEligibleAutoConnectMugIdentifiers: [String] {
+        autoConnectMugIdentifiers.filter { !manuallyDisconnectedMugIdentifiers.contains($0) }
+    }
+
+    private func synchronizeAutoConnectIdentifiersWithBluetooth() {
+        bluetoothCoordinator?.setAutoConnectPeripheralIdentifiers(reconnectEligibleAutoConnectMugIdentifiers)
+    }
+
+    private func markManualDisconnectSuppression(for identifier: String) {
+        guard manuallyDisconnectedMugIdentifiers.insert(identifier).inserted else { return }
+        persistManuallyDisconnectedMugIdentifiers()
+    }
+
+    private func clearManualDisconnectSuppression(for identifier: String) {
+        guard manuallyDisconnectedMugIdentifiers.remove(identifier) != nil else { return }
+        persistManuallyDisconnectedMugIdentifiers()
     }
 
     private func addSavedMugIdentifier(_ identifier: String) {
@@ -2409,6 +2604,15 @@ final class AppModel {
         case .permissionNeeded, .bluetoothUnavailable, .disconnected, .error, nil:
             return true
         }
+    }
+
+    private func reconnectAfterLostConnectionIfNeeded(
+        for identifier: String,
+        snapshot: BluetoothRuntimeSnapshot
+    ) {
+        guard snapshot.discoveryPhase == .disconnected else { return }
+        guard reconnectEligibleAutoConnectMugIdentifiers.contains(identifier) else { return }
+        handleReconnectOpportunity()
     }
 
     private func shouldKeepSelectedMug(identifier: String) -> Bool {
@@ -2527,6 +2731,21 @@ final class AppModel {
         preferences.set(jsonString, forKey: AppPreferencesKey.autoConnectMugIdentifiers)
     }
 
+    private func persistManuallyDisconnectedMugIdentifiers() {
+        let identifiers = Array(manuallyDisconnectedMugIdentifiers).sorted()
+        guard !identifiers.isEmpty else {
+            preferences.removeValue(forKey: AppPreferencesKey.manuallyDisconnectedMugIdentifiers)
+            return
+        }
+
+        guard
+            let data = try? JSONEncoder().encode(SavedMugIdentifiersPayload(identifiers: identifiers)),
+            let jsonString = String(data: data, encoding: .utf8)
+        else { return }
+
+        preferences.set(jsonString, forKey: AppPreferencesKey.manuallyDisconnectedMugIdentifiers)
+    }
+
     private func persistTargetTemperatureDraftsByMug() {
         guard !targetTemperatureDraftsByMug.isEmpty else {
             preferences.removeValue(forKey: AppPreferencesKey.targetTemperatureDraftsByMug)
@@ -2580,6 +2799,14 @@ final class AppModel {
             autoConnectMugIdentifiers = [legacyPreferredPeripheralIdentifier]
         }
 
+        if
+            let manuallyDisconnectedJSONString = preferences.string(forKey: AppPreferencesKey.manuallyDisconnectedMugIdentifiers),
+            let data = manuallyDisconnectedJSONString.data(using: .utf8),
+            let payload = try? JSONDecoder().decode(SavedMugIdentifiersPayload.self, from: data)
+        {
+            manuallyDisconnectedMugIdentifiers = Set(payload.identifiers)
+        }
+
         savedMugIdentifiers = uniqueIdentifiers(
             savedMugIdentifiers
                 + autoConnectMugIdentifiers
@@ -2589,6 +2816,7 @@ final class AppModel {
 
         if let savedTargetTemperature = preferences.double(forKey: AppPreferencesKey.targetTemperatureDraftCelsius) {
             targetTemperatureDraftCelsius = Self.clampedTargetTemperatureCelsius(savedTargetTemperature)
+            hasUserChosenGlobalTargetTemperatureDraft = true
         }
 
         if
@@ -2597,6 +2825,7 @@ final class AppModel {
             let payload = try? JSONDecoder().decode(TargetTemperatureDraftsPayload.self, from: data)
         {
             targetTemperatureDraftsByMug = payload.draftsByIdentifier.mapValues(Self.clampedTargetTemperatureCelsius)
+            userChosenTargetTemperatureDraftIdentifiers = Set(targetTemperatureDraftsByMug.keys)
         }
 
         if
@@ -2618,6 +2847,13 @@ final class AppModel {
             let temperatureUnitPreference = TemperatureUnitPreference(rawValue: savedTemperatureUnitPreference)
         {
             self.temperatureUnitPreference = temperatureUnitPreference
+        }
+
+        if
+            let savedTimeFormatPreference = preferences.string(forKey: AppPreferencesKey.timeFormatPreference),
+            let timeFormatPreference = TimeFormatPreference(rawValue: savedTimeFormatPreference)
+        {
+            self.timeFormatPreference = timeFormatPreference
         }
 
         if
@@ -2672,6 +2908,31 @@ final class AppModel {
         preferences.set(appVersionIdentifier, forKey: AppPreferencesKey.lastPresentedChangelogVersion)
     }
 
+    private func restoreOnboardingPresentationState() {
+        if !hasAcceptedCurrentLegalDocuments {
+            shouldStartOnboardingAtLegalAgreement = hasExistingInstallPreferencesFootprint()
+                || preferences.bool(forKey: AppPreferencesKey.hasCompletedOnboarding) == true
+            shouldPresentOnboarding = true
+            return
+        }
+
+        if let hasCompletedOnboarding = preferences.bool(forKey: AppPreferencesKey.hasCompletedOnboarding) {
+            shouldStartOnboardingAtLegalAgreement = false
+            shouldPresentOnboarding = !hasCompletedOnboarding
+            return
+        }
+
+        if hasExistingInstallPreferencesFootprint() {
+            preferences.set(true, forKey: AppPreferencesKey.hasCompletedOnboarding)
+            shouldStartOnboardingAtLegalAgreement = false
+            shouldPresentOnboarding = false
+            return
+        }
+
+        shouldStartOnboardingAtLegalAgreement = false
+        shouldPresentOnboarding = true
+    }
+
     private func hasExistingInstallPreferencesFootprint() -> Bool {
         if preferences.double(forKey: AppPreferencesKey.targetTemperatureDraftCelsius) != nil {
             return true
@@ -2684,9 +2945,11 @@ final class AppModel {
             AppPreferencesKey.selectedMugIdentifier,
             AppPreferencesKey.savedMugIdentifiers,
             AppPreferencesKey.autoConnectMugIdentifiers,
+            AppPreferencesKey.manuallyDisconnectedMugIdentifiers,
             AppPreferencesKey.savedMugNames,
             AppPreferencesKey.themePreference,
             AppPreferencesKey.temperatureUnitPreference,
+            AppPreferencesKey.timeFormatPreference,
             AppPreferencesKey.chartTimeframePreference,
             AppPreferencesKey.appLocationPreference
         ]
@@ -2725,6 +2988,7 @@ final class AppModel {
 
     private func setNormalizedTargetTemperatureDraft(_ celsius: Double, reenableIfNeeded: Bool = false) {
         targetTemperatureDraftCelsius = celsius
+        hasUserChosenGlobalTargetTemperatureDraft = true
         if canAdjustTemperature {
             rememberLocalHeatingIntent(expectedTargetTemperatureCelsius: targetTemperatureDraftCelsius)
             startPendingHeatingTransition(expectedTargetTemperatureCelsius: targetTemperatureDraftCelsius)
@@ -2733,6 +2997,7 @@ final class AppModel {
             isTemperatureControlOff = false
         }
         if let transientMugIdentifier {
+            userChosenTargetTemperatureDraftIdentifiers.insert(transientMugIdentifier)
             targetTemperatureDraftsByMug[transientMugIdentifier] = targetTemperatureDraftCelsius
             if var session = mugSessionsByIdentifier[transientMugIdentifier] {
                 session.targetTemperatureDraftCelsius = targetTemperatureDraftCelsius
@@ -2912,6 +3177,38 @@ final class AppModel {
         }
     }
 
+    private func startLegallyAuthorizedRuntimeIfNeeded() {
+        guard startsRuntimeWhenLegallyAuthorized else { return }
+        guard hasAcceptedCurrentLegalDocuments else { return }
+        guard !hasStartedLegallyAuthorizedRuntime else { return }
+
+        hasStartedLegallyAuthorizedRuntime = true
+        installLifecycleObservers()
+        loadMugHistoryAndRecordSessionStart()
+
+        if let deferredBluetoothCoordinator {
+            bluetoothCoordinator = deferredBluetoothCoordinator
+            self.deferredBluetoothCoordinator = nil
+            deferredBluetoothCoordinator.setPreferredPeripheralIdentifier(
+                selectedMugIdentifier ?? preferredPeripheralIdentifier
+            )
+            deferredBluetoothCoordinator.setAutoConnectPeripheralIdentifiers(
+                reconnectEligibleAutoConnectMugIdentifiers
+            )
+            deferredBluetoothCoordinator.recoverAutoConnectMugs()
+            return
+        }
+
+        bluetoothCoordinator = EmberMugBluetoothCoordinator(
+            preferredPeripheralIdentifier: selectedMugIdentifier ?? preferredPeripheralIdentifier,
+            autoConnectPeripheralIdentifiers: reconnectEligibleAutoConnectMugIdentifiers
+        ) { [weak self] snapshot in
+            Task { @MainActor in
+                self?.apply(snapshot: snapshot)
+            }
+        }
+    }
+
     private func startPendingHeatingTransition(expectedTargetTemperatureCelsius: Double?) {
         pendingHeatingTransition = PendingHeatingTransition(
             expectedTargetTemperatureCelsius: expectedTargetTemperatureCelsius,
@@ -2994,6 +3291,11 @@ final class AppModel {
     private func commitTemperatureControlState() {
         cancelPendingTemperatureControlCommit()
         guard canAdjustTemperature else { return }
+
+        if isTemperatureControlOff, isEmpty == true {
+            return
+        }
+
         bluetoothCoordinator?.setTargetTemperature(
             isTemperatureControlOff ? nil : targetTemperatureDraftCelsius,
             for: transientMugIdentifier
@@ -3008,32 +3310,23 @@ final class AppModel {
     private func beginInitialHeatingSafetyIfNeeded(for peripheralIdentifier: String?) {
         guard
             initialHeatingSafetyPeripheralIdentifier != peripheralIdentifier
-                || (!isAwaitingInitialContentsDecision && !didWriteInitialHeatingSafetyOff)
+                || !didBeginInitialHeatingSafety
         else { return }
 
         initialHeatingSafetyPeripheralIdentifier = peripheralIdentifier
         isAwaitingInitialContentsDecision = true
-        didWriteInitialHeatingSafetyOff = false
+        didBeginInitialHeatingSafety = true
         isPresentingEmptyHeatingAlert = false
         isEditingTargetTemperature = false
         cancelPendingTargetTemperatureCommit()
         cancelPendingTemperatureControlCommit()
-        setTemperatureControlStateLocally(isEnabled: false)
-    }
-
-    private func writeInitialHeatingSafetyOffIfNeeded(
-        canWriteTargetTemperature: Bool,
-        isConnected: Bool
-    ) {
-        guard !didWriteInitialHeatingSafetyOff, isConnected, canWriteTargetTemperature else { return }
-        bluetoothCoordinator?.setTargetTemperature(nil, for: transientMugIdentifier)
-        didWriteInitialHeatingSafetyOff = true
+        setTemperatureControlStateFromReadBack(isEnabled: false)
     }
 
     private func resetInitialHeatingSafety() {
         initialHeatingSafetyPeripheralIdentifier = nil
         isAwaitingInitialContentsDecision = false
-        didWriteInitialHeatingSafetyOff = false
+        didBeginInitialHeatingSafety = false
     }
 
     private func automaticallyTurnHeatingOffForEmptyMug(
@@ -3043,11 +3336,7 @@ final class AppModel {
         cancelPendingTargetTemperatureCommit()
         cancelPendingTemperatureControlCommit()
         isEditingTargetTemperature = false
-        setTemperatureControlStateLocally(isEnabled: false)
-
-        if isConnected && canWriteTargetTemperature {
-            bluetoothCoordinator?.setTargetTemperature(nil, for: transientMugIdentifier)
-        }
+        setTemperatureControlStateFromReadBack(isEnabled: false)
     }
 
     private func automaticallyTurnHeatingOnForFilledMug(
@@ -3063,6 +3352,72 @@ final class AppModel {
         setTemperatureControlStateLocally(isEnabled: true)
         bluetoothCoordinator?.setTargetTemperature(targetTemperatureDraftCelsius, for: transientMugIdentifier)
         return true
+    }
+
+    private func rearmStandaloneHeatingForEmptyMugIfNeeded(
+        reportedTargetTemperatureCelsius: Double?,
+        canWriteTargetTemperature: Bool,
+        isConnected: Bool
+    ) {
+        guard
+            isConnected,
+            canWriteTargetTemperature,
+            isEmpty == true,
+            isTemperatureControlOff,
+            let reportedTargetTemperatureCelsius
+        else { return }
+
+        guard reportedTargetTemperatureCelsius <= 0.01 else {
+            pendingStandaloneHeatingRearmTarget = nil
+            return
+        }
+
+        guard pendingStandaloneHeatingRearmTarget.map({ abs($0 - targetTemperatureDraftCelsius) < 0.35 }) != true else {
+            return
+        }
+
+        localHeatingIntent = nil
+        pendingHeatingTransition = nil
+        pendingStandaloneHeatingRearmTarget = targetTemperatureDraftCelsius
+        bluetoothCoordinator?.setTargetTemperature(targetTemperatureDraftCelsius, for: transientMugIdentifier)
+    }
+
+    private func applyTargetTemperatureReadBack(_ targetTemperatureCelsius: Double) {
+        if targetTemperatureCelsius <= 0.01 {
+            setTemperatureControlStateFromReadBack(isEnabled: false)
+            return
+        }
+
+        if isEmpty == true || isAwaitingInitialContentsDecision {
+            pendingStandaloneHeatingRearmTarget = nil
+            if !hasUserChosenTargetTemperatureDraftForCurrentMug {
+                storeTargetTemperatureDraftFromReadBack(targetTemperatureCelsius)
+            }
+            setTemperatureControlStateFromReadBack(isEnabled: false)
+            return
+        }
+
+        storeTargetTemperatureDraftFromReadBack(targetTemperatureCelsius)
+        setTemperatureControlStateFromReadBack(isEnabled: true)
+    }
+
+    private var hasUserChosenTargetTemperatureDraftForCurrentMug: Bool {
+        if let transientMugIdentifier, userChosenTargetTemperatureDraftIdentifiers.contains(transientMugIdentifier) {
+            return true
+        }
+
+        return hasUserChosenGlobalTargetTemperatureDraft
+    }
+
+    private func storeTargetTemperatureDraftFromReadBack(_ targetTemperatureCelsius: Double) {
+        targetTemperatureDraftCelsius = Self.normalizedTargetTemperatureCelsius(
+            targetTemperatureCelsius,
+            displayUnit: temperatureUnitPreference
+        )
+        if let transientMugIdentifier {
+            targetTemperatureDraftsByMug[transientMugIdentifier] = targetTemperatureDraftCelsius
+            persistTargetTemperatureDraftsByMug()
+        }
     }
 
     private func loadMugHistoryAndRecordSessionStart() {
@@ -3165,7 +3520,7 @@ final class AppModel {
         )
 
         AppLog.bluetooth.notice(
-            "Rejected suspicious battery reading \(reportedPercent, privacy: .public)% for mug \(mugIdentifier, privacy: .public); trusted \(trustedReading.percent, privacy: .public)%, charging \(isCharging, privacy: .public)."
+            "Rejected suspicious battery reading \(reportedPercent, privacy: .public)% for mug \(mugIdentifier, privacy: .private); trusted \(trustedReading.percent, privacy: .public)%, charging \(isCharging, privacy: .public)."
         )
 
         guard Self.isStableBatteryRecalibrationCandidate(pendingReading) else {
@@ -3177,7 +3532,7 @@ final class AppModel {
 
         acceptBatteryReading(pendingReading.percent, for: mugIdentifier, at: readingTimestamp)
         AppLog.bluetooth.notice(
-            "Accepted battery recalibration to \(pendingReading.percent, privacy: .public)% for mug \(mugIdentifier, privacy: .public) after \(pendingReading.sampleCount, privacy: .public) stable samples."
+            "Accepted battery recalibration to \(pendingReading.percent, privacy: .public)% for mug \(mugIdentifier, privacy: .private) after \(pendingReading.sampleCount, privacy: .public) stable samples."
         )
         return BatteryTrustResult(
             level: Self.batteryLevel(from: pendingReading.percent),
@@ -3397,13 +3752,19 @@ final class AppModel {
         return nextTimestamp.timeIntervalSince(previous.timestamp) <= legacyBatterySegmentBreakWindow
     }
 
-    private func handleAppResumed() {
-        switch connectionState {
-        case .connected:
+    func handleReconnectOpportunity() {
+        synchronizeAutoConnectIdentifiersWithBluetooth()
+
+        if hasConnectedMugSession {
             bluetoothCoordinator?.refreshReadings()
-        case .starting, .permissionNeeded, .bluetoothUnavailable, .scanning, .choosing, .connecting, .disconnected, .error:
-            break
         }
+
+        guard !reconnectEligibleAutoConnectMugIdentifiers.isEmpty else { return }
+        bluetoothCoordinator?.recoverAutoConnectMugs()
+    }
+
+    private func handleAppResumed() {
+        handleReconnectOpportunity()
     }
 
     private func setNotificationPreference(_ preference: NotificationPreference, isEnabled: Bool) {

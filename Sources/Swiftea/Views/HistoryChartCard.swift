@@ -14,7 +14,7 @@ struct HistoryChartCard: View {
     }
 
     var body: some View {
-        GroupBox {
+        DashboardCard {
             TimelineView(.periodic(from: Date(), by: 60)) { context in
                 let now = stableChartNow(from: context.date)
                 let windowStart = now.addingTimeInterval(-model.chartTimeframePreference.duration)
@@ -43,7 +43,11 @@ struct HistoryChartCard: View {
                         windowStart: windowStart,
                         now: now,
                         lineColor: lineColor,
-                        yAxisLabel: yAxisLabel(for:)
+                        yAxisLabel: yAxisLabel(for:),
+                        xAxisLabel: model.historyChartTimeLabel(for:),
+                        xAxisLabelWidth: model.timeFormatPreference.chartXAxisLabelWidth,
+                        xAxisLabelFontSize: model.timeFormatPreference.chartXAxisLabelFontSize,
+                        xAxisMeridiemLabelFontSize: model.timeFormatPreference.chartXAxisMeridiemLabelFontSize
                     )
                     .frame(height: 112)
                 }
@@ -101,14 +105,18 @@ private struct LightweightHistoryLineChart: View {
     let now: Date
     let lineColor: Color
     let yAxisLabel: (Double) -> String
+    let xAxisLabel: (Date) -> String
+    let xAxisLabelWidth: CGFloat
+    let xAxisLabelFontSize: CGFloat
+    let xAxisMeridiemLabelFontSize: CGFloat
 
     var body: some View {
         GeometryReader { geometry in
-            let layout = ChartLayout(size: geometry.size)
+            let layout = ChartLayout(size: geometry.size, xAxisLabelWidth: xAxisLabelWidth)
 
             ZStack(alignment: .topLeading) {
                 Canvas { context, size in
-                    let layout = ChartLayout(size: size)
+                    let layout = ChartLayout(size: size, xAxisLabelWidth: xAxisLabelWidth)
                     drawGrid(in: &context, layout: layout)
                     drawSegments(in: &context, layout: layout)
                 }
@@ -126,17 +134,38 @@ private struct LightweightHistoryLineChart: View {
                 }
 
                 ForEach(xAxisTicks, id: \.self) { date in
-                    Text(date.formatted(.dateTime.hour().minute()))
-                        .font(HistoryChartLayoutMetrics.axisLabelFont)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .frame(width: HistoryChartLayoutMetrics.xAxisLabelWidth, alignment: .center)
+                    let label = xAxisLabel(date)
+                    xAxisTickLabel(label)
                         .position(
                             x: xPosition(for: date, layout: layout),
-                            y: layout.plotMaxY + HistoryChartLayoutMetrics.xAxisLabelOffsetY
+                            y: layout.plotMaxY + xAxisLabelOffsetY(for: label)
                         )
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func xAxisTickLabel(_ label: String) -> some View {
+        let parts = label.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        if parts.count == 2 {
+            VStack(spacing: HistoryChartLayoutMetrics.xAxisLabelLineSpacing) {
+                Text(String(parts[0]))
+                    .font(.system(size: xAxisLabelFontSize))
+                    .monospacedDigit()
+                Text(String(parts[1]))
+                    .font(.system(size: xAxisMeridiemLabelFontSize))
+            }
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.secondary)
+            .frame(width: xAxisLabelWidth, alignment: .center)
+        } else {
+            Text(label)
+                .font(.system(size: xAxisLabelFontSize))
+                .monospacedDigit()
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .frame(width: xAxisLabelWidth, alignment: .center)
         }
     }
 
@@ -206,8 +235,15 @@ private struct LightweightHistoryLineChart: View {
         return layout.plotMaxY - CGFloat(ratio) * layout.plotHeight
     }
 
+    private func xAxisLabelOffsetY(for label: String) -> CGFloat {
+        label.contains("\n")
+            ? HistoryChartLayoutMetrics.twoLineXAxisLabelOffsetY
+            : HistoryChartLayoutMetrics.xAxisLabelOffsetY
+    }
+
     private struct ChartLayout {
         let size: CGSize
+        let xAxisLabelWidth: CGFloat
 
         var plotMinX: CGFloat {
             HistoryChartLayoutMetrics.yAxisLabelWidth
@@ -215,7 +251,7 @@ private struct LightweightHistoryLineChart: View {
         }
 
         var plotMaxX: CGFloat {
-            max(plotMinX + 1, size.width - HistoryChartLayoutMetrics.xAxisLabelWidth / 2)
+            max(plotMinX + 1, size.width - xAxisLabelWidth / 2)
         }
 
         var plotWidth: CGFloat {
@@ -239,8 +275,9 @@ private struct LightweightHistoryLineChart: View {
 private enum HistoryChartLayoutMetrics {
     static let yAxisLabelWidth: CGFloat = 38
     static let yAxisLabelGap: CGFloat = 8
-    static let xAxisLabelWidth: CGFloat = 40
     static let xAxisLabelOffsetY: CGFloat = 21
+    static let twoLineXAxisLabelOffsetY: CGFloat = 22
+    static let xAxisLabelLineSpacing: CGFloat = -4
     static let verticalGuideOverhang: CGFloat = 8
     static let axisLabelFont = Font.system(size: 10)
 }

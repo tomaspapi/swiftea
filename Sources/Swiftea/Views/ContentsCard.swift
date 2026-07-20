@@ -8,7 +8,7 @@ struct ContentsCard: View {
             HStack(spacing: 16) {
                 Image(systemName: model.contentsSymbolName)
                     .font(.system(size: 28, weight: .medium))
-                    .symbolRenderingMode(.hierarchical)
+                    .swifteaSymbolStyle()
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Contents")

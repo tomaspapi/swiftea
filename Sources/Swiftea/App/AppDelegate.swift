@@ -12,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applySavedActivationPolicy()
         applyBundledAppIcon()
 
+        guard ProcessInfo.processInfo.environment["SWIFTEA_ACTIVATE_ON_LAUNCH"] == "1" else {
+            return
+        }
+
         DispatchQueue.main.async {
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -24,8 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyBundledAppIcon() {
         guard
-            let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
-            let iconImage = NSImage(contentsOf: iconURL)
+            let iconImage = Self.bundledAppIcon()
         else {
             return
         }
@@ -37,5 +40,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let savedPreference = UserDefaults.standard.string(forKey: AppPreferencesKey.appLocationPreference)
         let preference = savedPreference.flatMap(AppModel.AppLocationPreference.init(rawValue:)) ?? .dockAndMenuBar
         NSApp.setActivationPolicy(preference.activationPolicy)
+    }
+}
+
+private extension AppDelegate {
+    static func bundledAppIcon() -> NSImage? {
+        guard
+            let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns")
+        else {
+            return nil
+        }
+
+        return NSImage(contentsOf: iconURL)
     }
 }

@@ -38,6 +38,7 @@ struct TemperatureControlsCard: View {
                     } label: {
                         Image(systemName: "minus")
                             .font(.system(size: 20, weight: .medium))
+                            .swifteaSymbolStyle()
                     }
                     .buttonStyle(.plain)
                     .disabled(!model.canAdjustTemperature)
@@ -57,6 +58,7 @@ struct TemperatureControlsCard: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 20, weight: .medium))
+                            .swifteaSymbolStyle()
                     }
                     .buttonStyle(.plain)
                     .disabled(!model.canAdjustTemperature)
