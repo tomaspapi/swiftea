@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.2.2 — 2026-07-20
+
+- Fixed a brief dashboard flicker and duplicate heating sound when returning to Swiftea while a mug was already connected.
+
 ## 0.2.1 — 2026-07-19
 
 - Fixed an update preference migration that could let an older Swiftea installation install a new version without first showing the update prompt.

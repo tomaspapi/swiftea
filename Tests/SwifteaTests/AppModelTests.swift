@@ -1430,6 +1430,34 @@ struct AppModelTests {
         #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 1)
     }
 
+    @Test func appActivationRefreshesConnectedMugWithoutRestartingItsConnection() {
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.savedMugIdentifiers
+        )
+        preferences.set(
+            #"{"identifiers":["MUG-SAVED"]}"#,
+            forKey: AppPreferencesKey.autoConnectMugIdentifiers
+        )
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            bluetoothCoordinator: bluetoothCoordinator
+        )
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, activePeripheralIdentifier: "MUG-SAVED"))
+        bluetoothCoordinator.recoverAutoConnectMugsCallCount = 0
+        bluetoothCoordinator.refreshReadingsCallCount = 0
+
+        model.handleReconnectOpportunity()
+
+        #expect(model.shouldShowMugDashboard)
+        #expect(bluetoothCoordinator.refreshReadingsCallCount == 1)
+        #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 0)
+    }
+
     @Test func manualDisconnectSuppressionPersistsUntilUserConnectsAgain() {
         let firstCoordinator = RecordingBluetoothCoordinator()
         let preferences = InMemoryAppPreferencesStore()
@@ -2273,6 +2301,7 @@ struct AppModelTests {
         var preferredIdentifierUpdates: [String?] = []
         var autoConnectIdentifierUpdates: [[String]] = []
         var recoverAutoConnectMugsCallCount = 0
+        var refreshReadingsCallCount = 0
         var scanForPreferredMugCallCount = 0
         var disconnectedMugIdentifiers: [String] = []
 
@@ -2301,7 +2330,9 @@ struct AppModelTests {
 
         func forgetMug(identifier: String) {}
         func startDiscoveryScan(excluding identifiers: [String]) {}
-        func refreshReadings() {}
+        func refreshReadings() {
+            refreshReadingsCallCount += 1
+        }
         func refreshReadings(for identifier: String?) {}
 
         func setTargetTemperature(_ celsius: Double?, for identifier: String?) {

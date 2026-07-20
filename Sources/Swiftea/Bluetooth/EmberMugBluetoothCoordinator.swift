@@ -467,6 +467,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
 
         let connectedPeripherals = central.retrieveConnectedPeripherals(withServices: [EmberGATT.service])
         for peripheral in connectedPeripherals where autoConnectPeripheralIdentifiers.contains(peripheral.identifier) {
+            guard !isConnectedOrConnecting(peripheral.identifier) else { continue }
             guard activeConnectionCount < Self.maximumSimultaneousMugs else { break }
             AppLog.bluetooth.info("Recovered already-connected Ember peripheral from Core Bluetooth.")
             let session = sessionsByIdentifier[peripheral.identifier] ?? MugPeripheralSession(

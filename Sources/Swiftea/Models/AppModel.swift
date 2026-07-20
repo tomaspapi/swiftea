@@ -3759,7 +3759,10 @@ final class AppModel {
             bluetoothCoordinator?.refreshReadings()
         }
 
-        guard !reconnectEligibleAutoConnectMugIdentifiers.isEmpty else { return }
+        let hasDisconnectedEligibleMug = reconnectEligibleAutoConnectMugIdentifiers.contains { identifier in
+            canStartPreferredScan(for: identifier)
+        }
+        guard hasDisconnectedEligibleMug else { return }
         bluetoothCoordinator?.recoverAutoConnectMugs()
     }
 
