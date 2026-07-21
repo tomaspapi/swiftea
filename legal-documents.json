@@ -16,10 +16,15 @@
       "sha256" : "cc1328911bd5b8d7fee95d9809b9229831e036a303e29807c6a5391b61dbde60"
     },
     {
+      "file" : "PRIVACY_POLICY.md",
+      "path" : "/privacy/",
+      "sha256" : "e74989a022cd187089ec645ff58e17f86cdc89dd71fae0198ac6683dd343a23f"
+    },
+    {
       "file" : "ACKNOWLEDGEMENTS.md",
       "path" : "/acknowledgements/",
       "sha256" : "9b052463fc4ec61c97782dc4180d1627697e0f0862ef96cee568a570f35ee7e5"
     }
   ],
-  "sourceRef" : "98306b3fd22980708bcf34fae5d2bbde66134251"
+  "sourceRef" : "a68533f718d29f523f284b0453419a16486024bc"
 }
