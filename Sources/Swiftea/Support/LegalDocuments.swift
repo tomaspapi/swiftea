@@ -45,6 +45,10 @@ enum SwifteaLegalDocuments {
         GeneratedLegalDocumentSources.safetyNoticeMarkdown,
         sourceName: "SAFETY_NOTICE.md"
     )
+    static let privacyPolicy = parseLegalDocument(
+        GeneratedLegalDocumentSources.privacyPolicyMarkdown,
+        sourceName: "PRIVACY_POLICY.md"
+    )
     static let acknowledgements = parseMarkdownDocument(
         GeneratedLegalDocumentSources.acknowledgementsMarkdown,
         sourceName: "ACKNOWLEDGEMENTS.md"

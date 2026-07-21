@@ -14,6 +14,10 @@ struct LegalDocumentsTests {
                 == GeneratedLegalDocumentSources.safetyNoticeMarkdown
         )
         #expect(
+            try canonicalDocument(named: "PRIVACY_POLICY.md")
+                == GeneratedLegalDocumentSources.privacyPolicyMarkdown
+        )
+        #expect(
             try canonicalDocument(named: "ACKNOWLEDGEMENTS.md")
                 == GeneratedLegalDocumentSources.acknowledgementsMarkdown
         )
@@ -28,6 +32,14 @@ struct LegalDocumentsTests {
         #expect(SwifteaLegalDocuments.currentSafetyNoticeVersion == "1.0")
         #expect(SwifteaLegalDocuments.termsOfUse.metadata.contains("Effective July 18, 2026"))
         #expect(SwifteaLegalDocuments.safetyNotice.metadata.contains("Effective July 18, 2026"))
+    }
+
+    @Test func privacyPolicyComesFromCanonicalMetadata() {
+        #expect(SwifteaLegalDocuments.privacyPolicy.version == "1.0")
+        #expect(SwifteaLegalDocuments.privacyPolicy.metadata.contains("Effective July 20, 2026"))
+        #expect(SwifteaLegalDocuments.privacyPolicy.title == "Privacy Policy")
+        #expect(SwifteaLegalDocuments.privacyPolicy.sections.contains { $0.title == "Website" })
+        #expect(SwifteaLegalDocuments.privacyPolicy.sections.contains { $0.title == "Retention and deletion" })
     }
 
     private func canonicalDocument(named name: String) throws -> String {

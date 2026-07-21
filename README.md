@@ -71,4 +71,5 @@ Swiftea is released under the [Zero-Clause BSD License (0BSD)](LICENSE).
 
 Prebuilt copies distributed by the maintainer are also covered by Swiftea’s
 [Terms of Use](TERMS_OF_USE.md) and [Safety Notice](SAFETY_NOTICE.md). See
+the [Privacy Policy](PRIVACY_POLICY.md) for Swiftea’s data practices and
 [Acknowledgements](ACKNOWLEDGEMENTS.md) for third-party software and reference material.

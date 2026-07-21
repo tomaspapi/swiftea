@@ -94,6 +94,17 @@ struct SwifteaApp: App {
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
 
+        Window("Swiftea Privacy Policy", id: "privacy-policy") {
+            LegalDocumentView(document: SwifteaLegalDocuments.privacyPolicy)
+                .preferredColorScheme(model.themePreference.colorScheme)
+                .background {
+                    AppAppearanceSynchronizer(themePreference: model.themePreference)
+                }
+        }
+        .defaultSize(width: 560, height: 620)
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+
         Window("What’s New in Swiftea", id: "whats-new") {
             UpdateChangelogView()
                 .preferredColorScheme(model.themePreference.colorScheme)

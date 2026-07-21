@@ -2,7 +2,7 @@ import Foundation
 
 enum AppVersion {
     static func currentMarketingVersion(bundle: Bundle = .main) -> String {
-        normalizedBundleString("CFBundleShortVersionString", bundle: bundle) ?? "0.2.0"
+        normalizedBundleString("CFBundleShortVersionString", bundle: bundle) ?? "0.2.3"
     }
 
     static func currentBuildNumber(bundle: Bundle = .main) -> String? {

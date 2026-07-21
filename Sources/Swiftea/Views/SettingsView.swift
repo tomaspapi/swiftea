@@ -138,6 +138,13 @@ struct SettingsView: View {
                 .buttonStyle(.link)
             }
 
+            LabeledContent("Privacy Policy") {
+                Button("Open") {
+                    openWindow(id: "privacy-policy")
+                }
+                .buttonStyle(.link)
+            }
+
             LabeledContent("Acknowledgements") {
                 Button("Open") {
                     openWindow(id: "acknowledgements")

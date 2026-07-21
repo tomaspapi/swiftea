@@ -10,6 +10,7 @@ private struct SourceDocument {
 private let documents = [
     SourceDocument(propertyName: "termsOfUseMarkdown", fileName: "TERMS_OF_USE.md"),
     SourceDocument(propertyName: "safetyNoticeMarkdown", fileName: "SAFETY_NOTICE.md"),
+    SourceDocument(propertyName: "privacyPolicyMarkdown", fileName: "PRIVACY_POLICY.md"),
     SourceDocument(propertyName: "acknowledgementsMarkdown", fileName: "ACKNOWLEDGEMENTS.md"),
     SourceDocument(propertyName: "licenseText", fileName: "LICENSE")
 ]

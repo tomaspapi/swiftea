@@ -142,3 +142,7 @@ private struct LegalDocumentContentHeightKey: PreferenceKey {
 #Preview("Safety") {
     LegalDocumentView(document: SwifteaLegalDocuments.safetyNotice)
 }
+
+#Preview("Privacy") {
+    LegalDocumentView(document: SwifteaLegalDocuments.privacyPolicy)
+}

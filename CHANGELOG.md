@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.2.3 — 2026-07-20
+
+- Added Swiftea’s Privacy Policy to the app, website, and public source.
+
 ## 0.2.2 — 2026-07-20
 
 - Fixed a brief dashboard flicker and duplicate heating sound when returning to Swiftea while a mug was already connected.
