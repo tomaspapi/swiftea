@@ -30,6 +30,7 @@ enum AppPreferencesKey {
     static let targetTemperatureNotificationsEnabled = "swiftea.targetTemperatureNotificationsEnabled"
     static let batteryFullyChargedNotificationsEnabled = "swiftea.batteryFullyChargedNotificationsEnabled"
     static let batteryFullyDischargedNotificationsEnabled = "swiftea.batteryFullyDischargedNotificationsEnabled"
+    static let soundsEnabled = "swiftea.soundsEnabled"
     static let lastPresentedChangelogVersion = "swiftea.lastPresentedChangelogVersion"
     static let hasCompletedOnboarding = "swiftea.hasCompletedOnboarding"
     static let acceptedTermsVersion = "swiftea.acceptedTermsVersion"

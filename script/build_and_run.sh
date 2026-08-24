@@ -11,6 +11,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_SPEC="$ROOT_DIR/project.yml"
 PROJECT_FILE="$ROOT_DIR/Swiftea.xcodeproj"
 PBXPROJ_FILE="$PROJECT_FILE/project.pbxproj"
+SPARKLE_PUBLIC_KEY_FILE="$ROOT_DIR/Config/SparklePublicKey.txt"
+UPDATE_FEED_URL="${SWIFTEA_UPDATE_FEED_URL:-https://tomaspapi.github.io/swiftea/appcast.xml}"
+UPDATE_PUBLIC_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 PREFERRED_DERIVED_DATA_DIR="${TMPDIR%/}/swiftea-deriveddata"
 FALLBACK_DERIVED_DATA_DIR="$ROOT_DIR/.deriveddata"
 DERIVED_DATA_DIR="$PREFERRED_DERIVED_DATA_DIR"
@@ -24,6 +27,22 @@ run_swift_snippet() {
 
 check_legal_documents() {
   /usr/bin/swift "$ROOT_DIR/script/generate_legal_documents.swift" --check
+}
+
+load_update_configuration() {
+  if [[ "$UPDATE_FEED_URL" != https://* ]]; then
+    echo "SWIFTEA_UPDATE_FEED_URL must be an HTTPS URL." >&2
+    exit 1
+  fi
+
+  if [[ -z "$UPDATE_PUBLIC_KEY" && -f "$SPARKLE_PUBLIC_KEY_FILE" ]]; then
+    UPDATE_PUBLIC_KEY="$(tr -d '\r\n' < "$SPARKLE_PUBLIC_KEY_FILE")"
+  fi
+
+  if [[ -z "$UPDATE_PUBLIC_KEY" ]]; then
+    echo "Sparkle public key is missing from $SPARKLE_PUBLIC_KEY_FILE." >&2
+    exit 1
+  fi
 }
 
 update_build_paths() {
@@ -101,14 +120,21 @@ build_app() {
   ensure_xcode_project
   mkdir -p "$DERIVED_DATA_DIR"
 
-  xcodebuild \
-    -project "$PROJECT_FILE" \
-    -scheme "$SCHEME_NAME" \
-    -configuration "$CONFIGURATION" \
-    -destination 'platform=macOS' \
-    -derivedDataPath "$DERIVED_DATA_DIR" \
-    CODE_SIGNING_ALLOWED=NO \
-    build
+  local -a build_command=(
+    xcodebuild
+    -project "$PROJECT_FILE"
+    -scheme "$SCHEME_NAME"
+    -configuration "$CONFIGURATION"
+    -destination 'platform=macOS'
+    -derivedDataPath "$DERIVED_DATA_DIR"
+    CODE_SIGNING_ALLOWED=NO
+    "SWIFTEA_UPDATE_FEED_URL=$UPDATE_FEED_URL"
+    "SPARKLE_PUBLIC_ED_KEY=$UPDATE_PUBLIC_KEY"
+  )
+
+
+  build_command+=(build)
+  "${build_command[@]}"
 }
 
 quit_running_app() {
@@ -226,6 +252,7 @@ exit(NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).is
 
 select_derived_data_dir
 check_legal_documents
+load_update_configuration
 quit_running_app
 remove_legacy_temp_app_bundle
 remove_previous_build_app_bundle

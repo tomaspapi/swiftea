@@ -1,6 +1,15 @@
 import Foundation
 
 enum PublishedChangelog {
+    struct Release: Equatable, Identifiable {
+        let version: String
+        let notes: [String]
+
+        var id: String {
+            version
+        }
+    }
+
     static func currentReleaseNotesMarkdown(
         bundle: Bundle = .main,
         version: String = AppVersion.currentMarketingVersion()
@@ -66,6 +75,44 @@ enum PublishedChangelog {
         return items
     }
 
+    static func releases(
+        from changelogMarkdown: String,
+        newerThan previousVersion: String?,
+        through currentVersion: String
+    ) -> [Release] {
+        let current = NumericVersion(currentVersion)
+        let previous = previousVersion.flatMap(NumericVersion.init)
+
+        return sectionBodies(in: changelogMarkdown)
+            .compactMap { section -> (release: Release, version: NumericVersion)? in
+                guard
+                    let versionString = versionString(from: section.heading),
+                    let version = NumericVersion(versionString),
+                    !releaseNoteItems(from: section.body).isEmpty
+                else {
+                    return nil
+                }
+
+                return (
+                    Release(
+                        version: versionString,
+                        notes: releaseNoteItems(from: section.body)
+                    ),
+                    version
+                )
+            }
+            .filter { item in
+                guard let current else { return false }
+                guard item.version <= current else { return false }
+                guard let previous else {
+                    return item.version == current
+                }
+                return item.version > previous
+            }
+            .sorted { $0.version > $1.version }
+            .map(\.release)
+    }
+
     private static func releaseSection(in markdown: String, matching version: String) -> String? {
         sectionBodies(in: markdown).first { section in
             headingMatchesVersion(section.heading, version: version)
@@ -127,6 +174,54 @@ enum PublishedChangelog {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return normalizedHeading == version || normalizedHeading.hasPrefix("\(version) ")
+    }
+
+    private static func versionString(from heading: String) -> String? {
+        let candidate = heading
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .first?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+
+        guard let candidate, NumericVersion(candidate) != nil else {
+            return nil
+        }
+
+        return candidate
+    }
+}
+
+private struct NumericVersion: Comparable {
+    private let components: [Int]
+
+    init?(_ string: String) {
+        let parsedComponents = string
+            .split(separator: ".", omittingEmptySubsequences: false)
+            .map(String.init)
+
+        guard
+            !parsedComponents.isEmpty,
+            parsedComponents.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) })
+        else {
+            return nil
+        }
+
+        components = parsedComponents.compactMap(Int.init)
+    }
+
+    static func < (lhs: NumericVersion, rhs: NumericVersion) -> Bool {
+        let count = max(lhs.components.count, rhs.components.count)
+
+        for index in 0 ..< count {
+            let left = index < lhs.components.count ? lhs.components[index] : 0
+            let right = index < rhs.components.count ? rhs.components[index] : 0
+
+            if left != right {
+                return left < right
+            }
+        }
+
+        return false
     }
 }
 

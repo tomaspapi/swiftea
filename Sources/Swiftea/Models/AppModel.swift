@@ -114,6 +114,11 @@ final class AppModel {
         }
     }
 
+    enum EmptyHeatingAlertPresentation: Equatable {
+        case mainWindow
+        case menuBar
+    }
+
     private struct SavedMugNamesPayload: Codable {
         let namesByIdentifier: [String: String]
     }
@@ -143,7 +148,7 @@ final class AppModel {
         var deviceSerialNumber: String?
         var currentTemperatureCelsius: Double?
         var isTemperatureControlOff = true
-        var isPresentingEmptyHeatingAlert = false
+        var emptyHeatingAlertPresentation: EmptyHeatingAlertPresentation?
         var targetTemperatureDraftCelsius = 57.0
         var batteryLevel: Double?
         var isCharging = false
@@ -482,8 +487,10 @@ final class AppModel {
     @ObservationIgnored private let mugHistoryStore: any MugHistoryStoring
     @ObservationIgnored private let targetTemperatureNotifier: any TargetTemperatureNotificationDelivering
     @ObservationIgnored private let idleSleepPreventionManager: any IdleSleepPreventionManaging
+    @ObservationIgnored private let loginItemManager: any LoginItemManaging
     @ObservationIgnored private let appSessionID: UUID
     @ObservationIgnored private let appVersionIdentifier: String
+    @ObservationIgnored private let changelogMarkdown: String
     @ObservationIgnored private let nowProvider: () -> Date
     @ObservationIgnored private var didBecomeActiveObserver: NSObjectProtocol?
     @ObservationIgnored private var didWakeObserver: NSObjectProtocol?
@@ -542,7 +549,7 @@ final class AppModel {
     var deviceSerialNumber: String?
     var currentTemperatureCelsius: Double?
     var isTemperatureControlOff = true
-    var isPresentingEmptyHeatingAlert = false
+    var emptyHeatingAlertPresentation: EmptyHeatingAlertPresentation?
     private(set) var targetTemperatureDraftCelsius = 57.0
     var batteryLevel: Double?
     var isCharging = false
@@ -628,6 +635,11 @@ final class AppModel {
             preferences.set(appLocationPreference.rawValue, forKey: AppPreferencesKey.appLocationPreference)
         }
     }
+    private(set) var launchesAtLogin = false
+    var isPresentingLoginItemAlert = false
+    var loginItemAlertTitle = ""
+    var loginItemAlertMessage = ""
+    var loginItemAlertOffersSystemSettings = false
     var chartNowOverride: Date?
     private(set) var targetTemperatureNotificationsEnabled = false {
         didSet {
@@ -651,12 +663,19 @@ final class AppModel {
             preferences.set(batteryFullyDischargedNotificationsEnabled, forKey: AppPreferencesKey.batteryFullyDischargedNotificationsEnabled)
         }
     }
+    private(set) var soundsEnabled = true {
+        didSet {
+            guard oldValue != soundsEnabled else { return }
+            preferences.set(soundsEnabled, forKey: AppPreferencesKey.soundsEnabled)
+        }
+    }
     var isRequestingNotificationPermission = false
     var isPresentingNotificationPermissionAlert = false
     var notificationPermissionAlertMessage = ""
     private(set) var shouldPresentOnboarding = false
     private(set) var shouldStartOnboardingAtLegalAgreement = false
     private(set) var shouldPresentUpdateChangelog = false
+    private(set) var updateChangelogReleases: [PublishedChangelog.Release] = []
     private(set) var mugHistoryEvents: [MugHistoryEvent] = []
     var canReadCurrentTemperature = false
     var canReadTargetTemperature = false
@@ -792,10 +811,12 @@ final class AppModel {
         heatingToggleSoundPlayer: (any HeatingToggleSoundPlaying)? = nil,
         targetTemperatureNotifier: (any TargetTemperatureNotificationDelivering)? = nil,
         idleSleepPreventionManager: (any IdleSleepPreventionManaging)? = nil,
+        loginItemManager: (any LoginItemManaging)? = nil,
         mugHistoryStore: (any MugHistoryStoring)? = nil,
         bluetoothCoordinator: (any EmberMugBluetoothCoordinating)? = nil,
         appSessionID: UUID = UUID(),
         appVersionIdentifier: String = AppVersion.currentIdentifier(),
+        changelogMarkdown: String = PublishedChangelog.bundledMarkdown(),
         systemPreferenceDefaults: SystemPreferenceDefaults? = nil,
         nowProvider: @escaping () -> Date = Date.init
     ) {
@@ -803,6 +824,7 @@ final class AppModel {
         self.mugHistoryStore = mugHistoryStore ?? (startBluetooth ? MugHistoryFileStore.shared : InMemoryMugHistoryStore())
         self.appSessionID = appSessionID
         self.appVersionIdentifier = appVersionIdentifier
+        self.changelogMarkdown = changelogMarkdown
         self.startsRuntimeWhenLegallyAuthorized = startBluetooth
         self.nowProvider = nowProvider
         self.heatingToggleSoundPlayer = heatingToggleSoundPlayer
@@ -811,6 +833,8 @@ final class AppModel {
             ?? (startBluetooth ? NativeTargetTemperatureNotificationCenter.shared : SilentTargetTemperatureNotificationCenter.shared)
         self.idleSleepPreventionManager = idleSleepPreventionManager
             ?? (startBluetooth ? NativeIdleSleepPreventionManager.shared : NoOpIdleSleepPreventionManager.shared)
+        self.loginItemManager = loginItemManager
+            ?? (startBluetooth ? NativeLoginItemManager.shared : NoOpLoginItemManager.shared)
         if startBluetooth {
             self.bluetoothCoordinator = nil
             self.deferredBluetoothCoordinator = bluetoothCoordinator
@@ -825,6 +849,7 @@ final class AppModel {
         self.timeFormatPreference = resolvedSystemPreferenceDefaults.timeFormatPreference
         isRestoringSavedPreferences = false
         restoreSavedPreferences()
+        refreshLaunchAtLoginStatus()
         restoreOnboardingPresentationState()
         restoreUpdateChangelogPresentationState()
         if startBluetooth {
@@ -1804,6 +1829,43 @@ final class AppModel {
         setNotificationPreference(.batteryFullyDischarged, isEnabled: isEnabled)
     }
 
+    func setSoundsEnabled(_ isEnabled: Bool) {
+        soundsEnabled = isEnabled
+    }
+
+    func setLaunchesAtLogin(_ isEnabled: Bool) {
+        guard isEnabled != launchesAtLogin else { return }
+
+        do {
+            try loginItemManager.setEnabled(isEnabled)
+            refreshLaunchAtLoginStatus()
+
+            if isEnabled && !launchesAtLogin {
+                presentLoginItemApprovalAlertIfNeeded()
+            }
+        } catch {
+            refreshLaunchAtLoginStatus()
+            AppLog.settings.error("Failed to update the launch-at-login setting: \(error.localizedDescription, privacy: .private)")
+
+            if loginItemManager.status == .requiresApproval {
+                presentLoginItemApprovalAlertIfNeeded()
+            } else {
+                loginItemAlertTitle = "Couldn’t update login setting"
+                loginItemAlertMessage = "Swiftea couldn’t change this macOS setting. Please try again."
+                loginItemAlertOffersSystemSettings = false
+                isPresentingLoginItemAlert = true
+            }
+        }
+    }
+
+    func refreshLaunchAtLoginStatus() {
+        launchesAtLogin = loginItemManager.status == .enabled
+    }
+
+    func openLoginItemsSettings() {
+        loginItemManager.openSystemSettings()
+    }
+
     func openNotificationSettings() {
         let urls = [
             URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"),
@@ -1847,11 +1909,14 @@ final class AppModel {
         isEditingTargetTemperature = true
     }
 
-    func setTemperatureControlEnabled(_ isEnabled: Bool) {
+    func setTemperatureControlEnabled(
+        _ isEnabled: Bool,
+        emptyMugAlertPresentation: EmptyHeatingAlertPresentation = .mainWindow
+    ) {
         guard canAdjustTemperature else { return }
 
         if isEnabled {
-            guard !presentEmptyHeatingAlertIfNeeded() else { return }
+            guard !presentEmptyHeatingAlertIfNeeded(on: emptyMugAlertPresentation) else { return }
             setTemperatureControlStateLocally(isEnabled: true)
         } else {
             cancelPendingTargetTemperatureCommit()
@@ -1863,14 +1928,14 @@ final class AppModel {
     }
 
     func confirmEmptyHeatingAlert() {
-        isPresentingEmptyHeatingAlert = false
+        setEmptyHeatingAlertPresentation(nil)
         guard canAdjustTemperature else { return }
         setTemperatureControlStateLocally(isEnabled: true)
         queueTemperatureControlCommit()
     }
 
     func cancelEmptyHeatingAlert() {
-        isPresentingEmptyHeatingAlert = false
+        setEmptyHeatingAlertPresentation(nil)
     }
 
     func turnTemperatureControlOff() {
@@ -1889,7 +1954,7 @@ final class AppModel {
     func commitTargetTemperatureDraft() {
         cancelPendingTargetTemperatureCommit()
         guard canAdjustTemperature else { return }
-        guard !presentEmptyHeatingAlertIfNeeded() else { return }
+        guard !presentEmptyHeatingAlertIfNeeded(on: .mainWindow) else { return }
         turnTemperatureControlOn()
     }
 
@@ -1987,7 +2052,7 @@ final class AppModel {
         let didReceiveInitialFullMugDecision = isAwaitingInitialContentsDecision && snapshot.isEmpty == false
 
         if didBecomeEmpty {
-            isPresentingEmptyHeatingAlert = false
+            emptyHeatingAlertPresentation = nil
             isAwaitingInitialContentsDecision = false
 
             if !isTemperatureControlOff {
@@ -2258,7 +2323,7 @@ final class AppModel {
         deviceSerialNumber = session.deviceSerialNumber
         currentTemperatureCelsius = session.currentTemperatureCelsius
         isTemperatureControlOff = session.isTemperatureControlOff
-        isPresentingEmptyHeatingAlert = session.isPresentingEmptyHeatingAlert
+        emptyHeatingAlertPresentation = session.emptyHeatingAlertPresentation
         targetTemperatureDraftCelsius = session.targetTemperatureDraftCelsius
         batteryLevel = session.batteryLevel
         isCharging = session.isCharging
@@ -2290,7 +2355,7 @@ final class AppModel {
         session.deviceSerialNumber = deviceSerialNumber
         session.currentTemperatureCelsius = currentTemperatureCelsius
         session.isTemperatureControlOff = isTemperatureControlOff
-        session.isPresentingEmptyHeatingAlert = isPresentingEmptyHeatingAlert
+        session.emptyHeatingAlertPresentation = emptyHeatingAlertPresentation
         session.targetTemperatureDraftCelsius = targetTemperatureDraftCelsius
         session.batteryLevel = batteryLevel
         session.isCharging = isCharging
@@ -2336,7 +2401,7 @@ final class AppModel {
         session.contentsLevelRaw = nil
         session.liquidStateDescription = nil
         session.isEmpty = nil
-        session.isPresentingEmptyHeatingAlert = false
+        session.emptyHeatingAlertPresentation = nil
         session.statusMessage = "Not connected."
         session.discoveryLabel = "Disconnected"
         session.lastDiscoveryDetail = detailMessage
@@ -2883,6 +2948,9 @@ final class AppModel {
         if let savedBatteryFullyDischargedNotificationsEnabled = preferences.bool(forKey: AppPreferencesKey.batteryFullyDischargedNotificationsEnabled) {
             batteryFullyDischargedNotificationsEnabled = savedBatteryFullyDischargedNotificationsEnabled
         }
+        if let savedSoundsEnabled = preferences.bool(forKey: AppPreferencesKey.soundsEnabled) {
+            soundsEnabled = savedSoundsEnabled
+        }
 
         normalizeTargetTemperatureDraftForCurrentUnit()
 
@@ -2895,13 +2963,27 @@ final class AppModel {
     private func restoreUpdateChangelogPresentationState() {
         guard !appVersionIdentifier.isEmpty else { return }
 
+        let currentMarketingVersion = AppVersion.marketingVersion(from: appVersionIdentifier)
+
         if let lastPresentedVersion = preferences.string(forKey: AppPreferencesKey.lastPresentedChangelogVersion) {
             shouldPresentUpdateChangelog = lastPresentedVersion != appVersionIdentifier
+            guard shouldPresentUpdateChangelog else { return }
+
+            updateChangelogReleases = PublishedChangelog.releases(
+                from: changelogMarkdown,
+                newerThan: AppVersion.marketingVersion(from: lastPresentedVersion),
+                through: currentMarketingVersion
+            )
             return
         }
 
         if hasExistingInstallPreferencesFootprint() {
             shouldPresentUpdateChangelog = true
+            updateChangelogReleases = PublishedChangelog.releases(
+                from: changelogMarkdown,
+                newerThan: nil,
+                through: currentMarketingVersion
+            )
             return
         }
 
@@ -2962,7 +3044,8 @@ final class AppModel {
             AppPreferencesKey.keepsRunningWhenWindowClosed,
             AppPreferencesKey.targetTemperatureNotificationsEnabled,
             AppPreferencesKey.batteryFullyChargedNotificationsEnabled,
-            AppPreferencesKey.batteryFullyDischargedNotificationsEnabled
+            AppPreferencesKey.batteryFullyDischargedNotificationsEnabled,
+            AppPreferencesKey.soundsEnabled
         ]
 
         return boolKeys.contains(where: { preferences.bool(forKey: $0) != nil })
@@ -3251,10 +3334,24 @@ final class AppModel {
         isEmpty == true && isTemperatureControlOff
     }
 
-    private func presentEmptyHeatingAlertIfNeeded() -> Bool {
+    private func presentEmptyHeatingAlertIfNeeded(
+        on presentation: EmptyHeatingAlertPresentation
+    ) -> Bool {
         guard shouldRequireEmptyMugHeatingConfirmation else { return false }
-        isPresentingEmptyHeatingAlert = true
+        setEmptyHeatingAlertPresentation(presentation)
         return true
+    }
+
+    private func setEmptyHeatingAlertPresentation(_ presentation: EmptyHeatingAlertPresentation?) {
+        emptyHeatingAlertPresentation = presentation
+
+        guard
+            let transientMugIdentifier,
+            var session = mugSessionsByIdentifier[transientMugIdentifier]
+        else { return }
+
+        session.emptyHeatingAlertPresentation = presentation
+        mugSessionsByIdentifier[transientMugIdentifier] = session
     }
 
     private func setTemperatureControlStateLocally(isEnabled: Bool) {
@@ -3284,7 +3381,9 @@ final class AppModel {
             session.targetTemperatureDraftCelsius = targetTemperatureDraftCelsius
             mugSessionsByIdentifier[transientMugIdentifier] = session
         }
-        heatingToggleSoundPlayer.playHeatingToggleSound(isEnabled: isEnabled)
+        if soundsEnabled {
+            heatingToggleSoundPlayer.playHeatingToggleSound(isEnabled: isEnabled)
+        }
         recordHistoryIfNeeded(kindOverride: .heatingChanged)
     }
 
@@ -3316,7 +3415,7 @@ final class AppModel {
         initialHeatingSafetyPeripheralIdentifier = peripheralIdentifier
         isAwaitingInitialContentsDecision = true
         didBeginInitialHeatingSafety = true
-        isPresentingEmptyHeatingAlert = false
+        emptyHeatingAlertPresentation = nil
         isEditingTargetTemperature = false
         cancelPendingTargetTemperatureCommit()
         cancelPendingTemperatureControlCommit()
@@ -3347,7 +3446,7 @@ final class AppModel {
 
         cancelPendingTargetTemperatureCommit()
         cancelPendingTemperatureControlCommit()
-        isPresentingEmptyHeatingAlert = false
+        emptyHeatingAlertPresentation = nil
         isEditingTargetTemperature = false
         setTemperatureControlStateLocally(isEnabled: true)
         bluetoothCoordinator?.setTargetTemperature(targetTemperatureDraftCelsius, for: transientMugIdentifier)
@@ -3767,7 +3866,17 @@ final class AppModel {
     }
 
     private func handleAppResumed() {
+        refreshLaunchAtLoginStatus()
         handleReconnectOpportunity()
+    }
+
+    private func presentLoginItemApprovalAlertIfNeeded() {
+        guard loginItemManager.status == .requiresApproval else { return }
+
+        loginItemAlertTitle = "Approval needed in macOS"
+        loginItemAlertMessage = "Allow Swiftea under Login Items in System Settings to launch it when you log in."
+        loginItemAlertOffersSystemSettings = true
+        isPresentingLoginItemAlert = true
     }
 
     private func setNotificationPreference(_ preference: NotificationPreference, isEnabled: Bool) {

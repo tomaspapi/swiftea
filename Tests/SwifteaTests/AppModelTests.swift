@@ -5,6 +5,27 @@ import Testing
 
 @MainActor
 struct AppModelTests {
+    @Test func launchAtLoginUsesTheSystemLoginItemAsItsSourceOfTruth() {
+        let loginItemManager = RecordingLoginItemManager(status: .enabled)
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            loginItemManager: loginItemManager
+        )
+
+        #expect(model.launchesAtLogin)
+
+        model.setLaunchesAtLogin(false)
+
+        #expect(loginItemManager.requestedValues == [false])
+        #expect(!model.launchesAtLogin)
+
+        model.setLaunchesAtLogin(true)
+
+        #expect(loginItemManager.requestedValues == [false, true])
+        #expect(model.launchesAtLogin)
+    }
+
     @Test func menuBarStatusShowsTemperatureOnlyForFilledConnectedMug() {
         let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
 
@@ -118,6 +139,39 @@ struct AppModelTests {
         #expect(model.targetTemperatureLabel == AppModel.format(celsius: 58))
     }
 
+    @Test func emptyMugHeatingConfirmationStaysOnRequestingSurface() {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+        model.apply(
+            snapshot: connectedSnapshot(
+                targetTemperatureCelsius: 0,
+                isEmpty: true
+            )
+        )
+
+        model.setTemperatureControlEnabled(
+            true,
+            emptyMugAlertPresentation: .menuBar
+        )
+
+        #expect(model.emptyHeatingAlertPresentation == .menuBar)
+        #expect(model.isTemperatureControlOff)
+
+        model.apply(
+            snapshot: connectedSnapshot(
+                targetTemperatureCelsius: 0,
+                isEmpty: true
+            )
+        )
+
+        #expect(model.emptyHeatingAlertPresentation == .menuBar)
+        #expect(model.isTemperatureControlOff)
+
+        model.confirmEmptyHeatingAlert()
+
+        #expect(model.emptyHeatingAlertPresentation == nil)
+        #expect(!model.isTemperatureControlOff)
+    }
+
     @Test func heatingToggleSoundFollowsHumanToggleChangesImmediately() {
         let soundPlayer = SpyHeatingToggleSoundPlayer()
         let model = AppModel(
@@ -148,6 +202,30 @@ struct AppModelTests {
         model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 0, isEmpty: false))
 
         #expect(soundPlayer.events == [true, false, true])
+    }
+
+    @Test func heatingToggleSoundsCanBeDisabledAndPreferencePersists() {
+        let preferences = InMemoryAppPreferencesStore()
+        let soundPlayer = SpyHeatingToggleSoundPlayer()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            heatingToggleSoundPlayer: soundPlayer
+        )
+        model.connectionState = .connected
+        model.canWriteTargetTemperature = true
+        model.isTemperatureControlOff = true
+
+        model.setSoundsEnabled(false)
+        model.setTemperatureControlEnabled(true)
+        model.setTemperatureControlEnabled(false)
+
+        #expect(!model.soundsEnabled)
+        #expect(preferences.bool(forKey: AppPreferencesKey.soundsEnabled) == false)
+        #expect(soundPlayer.events.isEmpty)
+
+        let restoredModel = AppModel(startBluetooth: false, preferences: preferences)
+        #expect(!restoredModel.soundsEnabled)
     }
 
     @Test func emptyMugTurnsVisibleHeatingOffWithoutClearingFirmwareTarget() {
@@ -837,6 +915,48 @@ struct AppModelTests {
         #expect(!model.shouldPresentUpdateChangelog)
         #expect(preferences.string(forKey: AppPreferencesKey.lastPresentedChangelogVersion) == "1.1.0 (11)")
         #expect(!model.consumeUpdateChangelogPresentation())
+    }
+
+    @Test func updateChangelogCollectsEveryMissedPublishedVersion() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("1.0.0 (10)", forKey: AppPreferencesKey.lastPresentedChangelogVersion)
+        let changelog = """
+        # Changelog
+
+        ## Unreleased
+
+        - Still in development.
+
+        ## 1.3.0
+
+        - Third release.
+
+        ## 1.2.0
+
+        - Second release.
+
+        ## 1.1.0
+
+        - First release.
+
+        ## 1.0.0
+
+        - Initial release.
+        """
+
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: preferences,
+            appVersionIdentifier: "1.3.0 (13)",
+            changelogMarkdown: changelog
+        )
+
+        #expect(model.updateChangelogReleases.map(\.version) == ["1.3.0", "1.2.0", "1.1.0"])
+        #expect(model.updateChangelogReleases.map(\.notes) == [
+            ["Third release."],
+            ["Second release."],
+            ["First release."]
+        ])
     }
 
     @Test func updateChangelogPresentsForExistingInstallWithoutTrackerKey() {
@@ -2393,6 +2513,23 @@ struct AppModelTests {
         }
     }
 
+    @MainActor
+    private final class RecordingLoginItemManager: LoginItemManaging {
+        var status: LoginItemRegistrationStatus
+        var requestedValues: [Bool] = []
+
+        init(status: LoginItemRegistrationStatus) {
+            self.status = status
+        }
+
+        func setEnabled(_ isEnabled: Bool) throws {
+            requestedValues.append(isEnabled)
+            status = isEnabled ? .enabled : .disabled
+        }
+
+        func openSystemSettings() {}
+    }
+
     private func connectedSnapshot(
         targetTemperatureCelsius: Double?,
         discoveryPhase: BluetoothRuntimeSnapshot.DiscoveryPhase = .connected,
@@ -2547,4 +2684,5 @@ struct AppModelTests {
         }
         #expect(didThrow)
     }
+
 }

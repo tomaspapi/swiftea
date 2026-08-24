@@ -2,7 +2,7 @@ import Foundation
 
 enum AppVersion {
     static func currentMarketingVersion(bundle: Bundle = .main) -> String {
-        normalizedBundleString("CFBundleShortVersionString", bundle: bundle) ?? "0.2.3"
+        normalizedBundleString("CFBundleShortVersionString", bundle: bundle) ?? "0.3.0"
     }
 
     static func currentBuildNumber(bundle: Bundle = .main) -> String? {
@@ -19,6 +19,14 @@ enum AppVersion {
         }
 
         return "\(version) (\(build))"
+    }
+
+    static func marketingVersion(from identifier: String) -> String {
+        identifier
+            .split(separator: " ", maxSplits: 1)
+            .first
+            .map(String.init)
+            ?? identifier
     }
 
     private static func normalizedBundleString(_ key: String, bundle: Bundle) -> String? {

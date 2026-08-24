@@ -66,6 +66,8 @@ struct BatteryStatusIndicator: View {
         )
         .animation(.snappy(duration: 0.45, extraBounce: 0.06), value: visualState)
         .animation(.smooth(duration: 0.35), value: model.batteryFillFraction)
+        .contentShape(Rectangle())
+        .help("Battery")
     }
 }
 

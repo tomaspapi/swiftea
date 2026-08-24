@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct TemperatureSummaryCard: View {
@@ -56,20 +57,14 @@ struct TemperatureSummaryCard: View {
     private var statusSymbol: some View {
         switch statusPresentation {
         case .heating:
-            AnimatedStatusSymbol(
-                systemName: "heat.waves",
-                fontSize: 14,
-                weight: .semibold,
-                baseColor: Color.orange,
-                softHighlightColor: Color(red: 1.0, green: 0.66, blue: 0.25),
-                brightHighlightColor: Color(red: 1.0, green: 0.86, blue: 0.52)
-            )
-            .transition(
-                .asymmetric(
-                    insertion: .scale(scale: 0.82).combined(with: .opacity),
-                    removal: .scale(scale: 0.78).combined(with: .opacity)
+            RepeatingHeatWavesSymbol()
+                .frame(width: 22, height: 18)
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.82).combined(with: .opacity),
+                        removal: .scale(scale: 0.78).combined(with: .opacity)
+                    )
                 )
-            )
         case .idle:
             Image(systemName: "pause.fill")
                 .font(.system(size: 14, weight: .semibold))
@@ -88,6 +83,59 @@ struct TemperatureSummaryCard: View {
             .foregroundStyle(titleColor)
             .tracking(0.6)
             .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+private struct RepeatingHeatWavesSymbol: NSViewRepresentable {
+    func makeNSView(context: Context) -> RepeatingDrawOnImageView {
+        RepeatingDrawOnImageView()
+    }
+
+    func updateNSView(_ nsView: RepeatingDrawOnImageView, context: Context) {}
+}
+
+private final class RepeatingDrawOnImageView: NSImageView {
+    private var isEffectActive = false
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 22, height: 18)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+
+        image = NSImage(
+            systemSymbolName: "heat.waves",
+            accessibilityDescription: "Heating"
+        )
+        symbolConfiguration = NSImage.SymbolConfiguration(
+            pointSize: 14,
+            weight: .semibold
+        ).applying(.preferringMonochrome())
+        contentTintColor = .systemOrange
+        imageAlignment = .alignCenter
+        imageScaling = .scaleProportionallyDown
+        setAccessibilityLabel("Heating")
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        if window == nil {
+            removeAllSymbolEffects(animated: false)
+            isEffectActive = false
+        } else if !isEffectActive {
+            addSymbolEffect(
+                .drawOn.byLayer,
+                options: .repeat(.periodic(delay: 1.0))
+            )
+            isEffectActive = true
+        }
     }
 }
 

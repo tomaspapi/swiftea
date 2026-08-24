@@ -106,7 +106,7 @@ struct SwifteaApp: App {
         .restorationBehavior(.disabled)
 
         Window("What’s New in Swiftea", id: "whats-new") {
-            UpdateChangelogView()
+            UpdateChangelogView(releases: model.updateChangelogReleases)
                 .preferredColorScheme(model.themePreference.colorScheme)
                 .background {
                     AppAppearanceSynchronizer(themePreference: model.themePreference)
@@ -219,8 +219,17 @@ private struct MenuBarStatusPanel: View {
     private var heatingBinding: Binding<Bool> {
         Binding(
             get: { !model.isTemperatureControlOff },
-            set: { model.setTemperatureControlEnabled($0) }
+            set: {
+                model.setTemperatureControlEnabled(
+                    $0,
+                    emptyMugAlertPresentation: .menuBar
+                )
+            }
         )
+    }
+
+    private var isPresentingEmptyHeatingConfirmation: Bool {
+        model.emptyHeatingAlertPresentation == .menuBar
     }
 
     private var isTargetControlEnabled: Bool {
@@ -241,7 +250,13 @@ private struct MenuBarStatusPanel: View {
                 panelHeader {
                     mugStatusSection(currentMug: currentMug)
                 }
-                heatingSection
+
+                if isPresentingEmptyHeatingConfirmation {
+                    emptyMugHeatingConfirmation
+                } else {
+                    heatingSection
+                }
+
                 Divider()
             } else {
                 panelHeader {
@@ -255,18 +270,6 @@ private struct MenuBarStatusPanel: View {
         .controlSize(.small)
         .padding(12)
         .frame(width: 226)
-        .alert("The mug is currently empty", isPresented: $model.isPresentingEmptyHeatingAlert) {
-            Button("Turn On") {
-                model.confirmEmptyHeatingAlert()
-            }
-
-            Button("Cancel", role: .cancel) {
-                model.cancelEmptyHeatingAlert()
-            }
-            .keyboardShortcut(.defaultAction)
-        } message: {
-            Text("Are you sure you want to turn heating on?")
-        }
     }
 
     private func panelHeader<Content: View>(
@@ -326,6 +329,42 @@ private struct MenuBarStatusPanel: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         }
+    }
+
+    private var emptyMugHeatingConfirmation: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Mug is empty")
+                    .font(.callout.weight(.semibold))
+
+                Text("Turn heating on anyway?")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 6) {
+                Spacer(minLength: 0)
+
+                Button("Cancel", role: .cancel) {
+                    model.cancelEmptyHeatingAlert()
+                }
+                .keyboardShortcut(.defaultAction)
+
+                Button("Turn On") {
+                    model.confirmEmptyHeatingAlert()
+                }
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
     }
 
     private var emptyStateSection: some View {

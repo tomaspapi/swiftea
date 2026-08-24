@@ -5,18 +5,22 @@ import SwiftUI
 
 @MainActor
 final class UpdateController {
-    nonisolated static let sparkleAutomaticDownloadPreferenceKey = "SUAutomaticallyUpdate"
+    struct AutomaticUpdatePreferences: Equatable, Sendable {
+        let checksEnabled: Bool
+        let downloadsEnabled: Bool
+    }
+
+    enum AutomaticUpdatePreferenceChange: Equatable, Sendable {
+        case checks(Bool)
+        case downloads(Bool)
+    }
 
     private let bundle: Bundle
     private let updaterSettings: SPUUpdaterSettings
     private let updaterController: SPUStandardUpdaterController?
 
-    init(bundle: Bundle = .main, userDefaults: UserDefaults = .standard) {
+    init(bundle: Bundle = .main) {
         self.bundle = bundle
-
-        // Swiftea offers automatic checks, but updates must still be approved by the user.
-        // Clear the separate Sparkle preference that older builds allowed users to enable.
-        Self.disableAutomaticUpdateDownloads(in: userDefaults)
         updaterSettings = SPUUpdaterSettings(hostBundle: bundle)
 
         guard Self.hasRequiredSparkleConfiguration(in: bundle) else {
@@ -31,23 +35,69 @@ final class UpdateController {
         )
     }
 
-    nonisolated static func disableAutomaticUpdateDownloads(in userDefaults: UserDefaults) {
-        userDefaults.set(false, forKey: sparkleAutomaticDownloadPreferenceKey)
-    }
-
     var updater: SPUUpdater? {
         updaterController?.updater
     }
 
     var currentVersionDescription: String {
-        Self.currentVersionDescription(in: bundle)
+        AppVersion.currentMarketingVersion(bundle: bundle)
     }
 
     var automaticallyChecksForUpdates: Bool {
         updater?.automaticallyChecksForUpdates ?? updaterSettings.automaticallyChecksForUpdates
     }
 
+    var automaticallyDownloadsUpdates: Bool {
+        updater?.automaticallyDownloadsUpdates ?? updaterSettings.automaticallyDownloadsUpdates
+    }
+
     func setAutomaticallyChecksForUpdates(_ isEnabled: Bool) {
+        applyAutomaticUpdatePreferenceChange(.checks(isEnabled))
+    }
+
+    func setAutomaticallyDownloadsUpdates(_ isEnabled: Bool) {
+        applyAutomaticUpdatePreferenceChange(.downloads(isEnabled))
+    }
+
+    func checkForUpdates() {
+        updater?.checkForUpdates()
+    }
+
+    nonisolated static func automaticUpdatePreferences(
+        current: AutomaticUpdatePreferences,
+        applying change: AutomaticUpdatePreferenceChange
+    ) -> AutomaticUpdatePreferences {
+        switch change {
+        case let .checks(isEnabled):
+            return AutomaticUpdatePreferences(
+                checksEnabled: isEnabled,
+                downloadsEnabled: isEnabled ? current.downloadsEnabled : false
+            )
+        case let .downloads(isEnabled):
+            return AutomaticUpdatePreferences(
+                checksEnabled: isEnabled ? true : current.checksEnabled,
+                downloadsEnabled: isEnabled
+            )
+        }
+    }
+
+    private func applyAutomaticUpdatePreferenceChange(_ change: AutomaticUpdatePreferenceChange) {
+        let current = AutomaticUpdatePreferences(
+            checksEnabled: automaticallyChecksForUpdates,
+            downloadsEnabled: automaticallyDownloadsUpdates
+        )
+        let desired = Self.automaticUpdatePreferences(current: current, applying: change)
+
+        if desired.checksEnabled {
+            setAutomaticChecks(desired.checksEnabled)
+            setAutomaticDownloads(desired.downloadsEnabled)
+        } else {
+            setAutomaticDownloads(desired.downloadsEnabled)
+            setAutomaticChecks(desired.checksEnabled)
+        }
+    }
+
+    private func setAutomaticChecks(_ isEnabled: Bool) {
         if let updater {
             updater.automaticallyChecksForUpdates = isEnabled
         } else {
@@ -55,8 +105,12 @@ final class UpdateController {
         }
     }
 
-    func checkForUpdates() {
-        updater?.checkForUpdates()
+    private func setAutomaticDownloads(_ isEnabled: Bool) {
+        if let updater {
+            updater.automaticallyDownloadsUpdates = isEnabled
+        } else {
+            updaterSettings.automaticallyDownloadsUpdates = isEnabled
+        }
     }
 
     private static func hasRequiredSparkleConfiguration(in bundle: Bundle) -> Bool {
@@ -123,23 +177,6 @@ final class UpdateController {
         }
     }
 
-    private static func currentVersionDescription(in bundle: Bundle) -> String {
-        let version = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let build = (bundle.object(forInfoDictionaryKey: kCFBundleVersionKey as String) as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        switch (version?.isEmpty == false ? version : nil, build?.isEmpty == false ? build : nil) {
-        case let (version?, build?) where build != version:
-            return "\(version) (\(build))"
-        case let (version?, _):
-            return version
-        case let (_, build?):
-            return build
-        default:
-            return "Unknown"
-        }
-    }
 }
 
 struct CheckForUpdatesCommand: View {
@@ -163,6 +200,7 @@ struct CheckForUpdatesCommand: View {
 final class UpdateSettingsViewModel: ObservableObject {
     @Published var canCheckForUpdates = false
     @Published var automaticallyChecksForUpdates = false
+    @Published var automaticallyDownloadsUpdates = false
 
     let currentVersionDescription: String
 
@@ -174,6 +212,7 @@ final class UpdateSettingsViewModel: ObservableObject {
         currentVersionDescription = updateController.currentVersionDescription
         canCheckForUpdates = updateController.updater?.canCheckForUpdates ?? false
         automaticallyChecksForUpdates = updateController.automaticallyChecksForUpdates
+        automaticallyDownloadsUpdates = updateController.automaticallyDownloadsUpdates
 
         guard let updater = updateController.updater else {
             return
@@ -183,6 +222,13 @@ final class UpdateSettingsViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] canCheckForUpdates in
                 self?.canCheckForUpdates = canCheckForUpdates
+            }
+            .store(in: &cancellables)
+
+        updater.publisher(for: \.automaticallyDownloadsUpdates)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] automaticallyDownloadsUpdates in
+                self?.automaticallyDownloadsUpdates = automaticallyDownloadsUpdates
             }
             .store(in: &cancellables)
 
@@ -201,6 +247,13 @@ final class UpdateSettingsViewModel: ObservableObject {
     func setAutomaticallyChecksForUpdates(_ isEnabled: Bool) {
         updateController.setAutomaticallyChecksForUpdates(isEnabled)
         automaticallyChecksForUpdates = updateController.automaticallyChecksForUpdates
+        automaticallyDownloadsUpdates = updateController.automaticallyDownloadsUpdates
+    }
+
+    func setAutomaticallyDownloadsUpdates(_ isEnabled: Bool) {
+        updateController.setAutomaticallyDownloadsUpdates(isEnabled)
+        automaticallyChecksForUpdates = updateController.automaticallyChecksForUpdates
+        automaticallyDownloadsUpdates = updateController.automaticallyDownloadsUpdates
     }
 }
 

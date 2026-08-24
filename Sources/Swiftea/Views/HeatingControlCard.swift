@@ -11,6 +11,16 @@ struct HeatingControlCard: View {
         )
     }
 
+    private var emptyHeatingAlertBinding: Binding<Bool> {
+        Binding(
+            get: { model.emptyHeatingAlertPresentation == .mainWindow },
+            set: { isPresented in
+                if !isPresented {
+                    model.cancelEmptyHeatingAlert()
+                }
+            }
+        )
+    }
     private var isTargetControlEnabled: Bool {
         model.canAdjustTemperature && !model.isTemperatureControlOff
     }
@@ -62,7 +72,7 @@ struct HeatingControlCard: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .alert("The mug is currently empty", isPresented: $model.isPresentingEmptyHeatingAlert) {
+        .alert("The mug is currently empty", isPresented: emptyHeatingAlertBinding) {
             Button("Turn On") {
                 model.confirmEmptyHeatingAlert()
             }

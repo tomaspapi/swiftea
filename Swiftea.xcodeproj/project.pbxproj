@@ -33,6 +33,7 @@
 		5E34305E8FBEDC38CFC03A3B /* HistoryChartCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EE2198A471937E004216E2 /* HistoryChartCard.swift */; };
 		6104687DB4690CFA2F592860 /* AppPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F0DA13EACB1D56087EB7E7 /* AppPreferencesStore.swift */; };
 		6ACF908E43D2EB8F9C41CC7A /* MainWindowPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81F4C0B1FE1A69FC8DC55B47 /* MainWindowPresenter.swift */; };
+		70DB6179921FAEDF6C0F696E /* LoginItemManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA05C653585DA8609E2C1317 /* LoginItemManager.swift */; };
 		7B22C512A7CE8EA285B1A71F /* BluetoothRuntimeSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0526E3D62E202968FF3D4D /* BluetoothRuntimeSnapshot.swift */; };
 		7B5F25C0DD9283E8FBF3D333 /* MugDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC149A0137ABB57AAAC9DBEA /* MugDashboardView.swift */; };
 		7B9EAD44A8B653107B8970BC /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = BB380FDAEF9258D2F3620354 /* CHANGELOG.md */; };
@@ -123,6 +124,7 @@
 		B4DEC5915F361A150FCEF127 /* SwifteaSymbolStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwifteaSymbolStyle.swift; sourceTree = "<group>"; };
 		B75EBC44CE722C2160D2A8C7 /* MugPeripheralSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MugPeripheralSession.swift; sourceTree = "<group>"; };
 		BA03BC292BE22BE9E2014FF6 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
+		BA05C653585DA8609E2C1317 /* LoginItemManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemManager.swift; sourceTree = "<group>"; };
 		BB380FDAEF9258D2F3620354 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
 		BC5231C1ECFA3CB14942F376 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		C25B0D1CDE8386ACAD0B7E96 /* SystemSettingsNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSettingsNavigator.swift; sourceTree = "<group>"; };
@@ -238,6 +240,7 @@
 				C742E6895F7D760FFC4F6BC3 /* HeatingToggleSoundPlayer.swift */,
 				F1CC387A5A6A8B6B660052CF /* IdleSleepPreventionManager.swift */,
 				45F3002EEFBDB3B72FF156C9 /* LegalDocuments.swift */,
+				BA05C653585DA8609E2C1317 /* LoginItemManager.swift */,
 				81F4C0B1FE1A69FC8DC55B47 /* MainWindowPresenter.swift */,
 				7D5DB09174E9FE4665713BE7 /* PublishedChangelog.swift */,
 				C25B0D1CDE8386ACAD0B7E96 /* SystemSettingsNavigator.swift */,
@@ -467,6 +470,7 @@
 				09048EACC4D83A7F5A53198C /* LegalDocumentView.swift in Sources */,
 				D4AF138C15E526FC0F84E8F4 /* LegalDocuments.swift in Sources */,
 				02A4BDA7B4F8DD5C8795BD64 /* LicenseView.swift in Sources */,
+				70DB6179921FAEDF6C0F696E /* LoginItemManager.swift in Sources */,
 				6ACF908E43D2EB8F9C41CC7A /* MainWindowPresenter.swift in Sources */,
 				7B5F25C0DD9283E8FBF3D333 /* MugDashboardView.swift in Sources */,
 				C584EF711F0E7184AB8189CE /* MugHistory.swift in Sources */,
@@ -556,7 +560,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -574,21 +578,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Swiftea;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Swiftea uses Bluetooth to find and control your Ember Mug 2.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Public domain via Zero-Clause BSD (0BSD) License";
-				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
-				INFOPLIST_KEY_SUAutomaticallyUpdate = NO;
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "$(SWIFTEA_UPDATE_FEED_URL)";
-				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_PUBLIC_ED_KEY)";
-				INFOPLIST_KEY_SURequireSignedFeed = YES;
-				INFOPLIST_KEY_SUSignedFeedFailureExpirationInterval = 0;
-				INFOPLIST_KEY_SUVerifyUpdateBeforeExtraction = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.2.3;
+				MARKETING_VERSION = 0.3.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -695,7 +688,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -708,21 +701,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Swiftea;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Swiftea uses Bluetooth to find and control your Ember Mug 2.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Public domain via Zero-Clause BSD (0BSD) License";
-				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
-				INFOPLIST_KEY_SUAutomaticallyUpdate = NO;
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "$(SWIFTEA_UPDATE_FEED_URL)";
-				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_PUBLIC_ED_KEY)";
-				INFOPLIST_KEY_SURequireSignedFeed = YES;
-				INFOPLIST_KEY_SUSignedFeedFailureExpirationInterval = 0;
-				INFOPLIST_KEY_SUVerifyUpdateBeforeExtraction = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.2.3;
+				MARKETING_VERSION = 0.3.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tom.swiftea;

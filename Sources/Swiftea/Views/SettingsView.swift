@@ -53,6 +53,20 @@ struct SettingsView: View {
         } message: {
             Text(model.notificationPermissionAlertMessage)
         }
+        .alert(model.loginItemAlertTitle, isPresented: $model.isPresentingLoginItemAlert) {
+            if model.loginItemAlertOffersSystemSettings {
+                Button("Open System Settings") {
+                    model.openLoginItemsSettings()
+                }
+            }
+
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.loginItemAlertMessage)
+        }
+        .onAppear {
+            model.refreshLaunchAtLoginStatus()
+        }
     }
 
     private var selectedPaneHeight: CGFloat? {
@@ -66,7 +80,7 @@ struct SettingsView: View {
                 themeMenu
             }
 
-            LabeledContent("Chart Timeframe") {
+            LabeledContent("Chart timeframe") {
                 timeframeMenu
             }
         }
@@ -89,6 +103,12 @@ struct SettingsView: View {
             LabeledContent("After closing window") {
                 windowCloseBehaviorMenu
             }
+
+            LabeledContent("Launch Swiftea at login") {
+                Toggle("", isOn: launchAtLoginToggleBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
         }
     }
 
@@ -98,19 +118,30 @@ struct SettingsView: View {
             LabeledContent("Mug reaches target temperature") {
                 Toggle("", isOn: notificationToggleBinding)
                     .labelsHidden()
+                    .toggleStyle(.switch)
                     .disabled(model.isRequestingNotificationPermission)
             }
 
             LabeledContent("Battery charges to 100%") {
                 Toggle("", isOn: batteryFullyChargedNotificationToggleBinding)
                     .labelsHidden()
+                    .toggleStyle(.switch)
                     .disabled(model.isRequestingNotificationPermission)
             }
 
             LabeledContent("Battery discharges to 0%") {
                 Toggle("", isOn: batteryFullyDischargedNotificationToggleBinding)
                     .labelsHidden()
+                    .toggleStyle(.switch)
                     .disabled(model.isRequestingNotificationPermission)
+            }
+        }
+
+        Section("Sounds") {
+            LabeledContent("Enable sounds") {
+                Toggle("", isOn: soundsToggleBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
             }
         }
     }
@@ -201,6 +232,28 @@ struct SettingsView: View {
             },
             set: { isEnabled in
                 model.setBatteryFullyDischargedNotificationsEnabled(isEnabled)
+            }
+        )
+    }
+
+    private var soundsToggleBinding: Binding<Bool> {
+        Binding(
+            get: {
+                model.soundsEnabled
+            },
+            set: { isEnabled in
+                model.setSoundsEnabled(isEnabled)
+            }
+        )
+    }
+
+    private var launchAtLoginToggleBinding: Binding<Bool> {
+        Binding(
+            get: {
+                model.launchesAtLogin
+            },
+            set: { isEnabled in
+                model.setLaunchesAtLogin(isEnabled)
             }
         )
     }
@@ -364,6 +417,20 @@ private struct UpdatesSettingsContent: View {
                     }
                 ))
                 .labelsHidden()
+                .toggleStyle(.switch)
+            }
+
+            LabeledContent("Download and install updates automatically") {
+                Toggle("", isOn: Binding(
+                    get: {
+                        viewModel.automaticallyDownloadsUpdates
+                    },
+                    set: { isEnabled in
+                        viewModel.setAutomaticallyDownloadsUpdates(isEnabled)
+                    }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
             }
 
             LabeledContent("Check manually") {
@@ -391,7 +458,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:
             "General"
         case .notifications:
-            "Notifications"
+            "Alerts"
         case .updates:
             "Updates"
         case .about:

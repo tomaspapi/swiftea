@@ -5,15 +5,25 @@ struct UpdateChangelogView: View {
     @State private var contentHeight: CGFloat = 0
     @State private var requiresScrolling = false
 
-    private let version: String
-    private let releaseNotes: [String]
+    private let releases: [PublishedChangelog.Release]
 
     init(
-        version: String = AppVersion.currentMarketingVersion(),
-        markdown: String = PublishedChangelog.currentReleaseNotesMarkdown()
+        releases: [PublishedChangelog.Release] = PublishedChangelog.releases(
+            from: PublishedChangelog.bundledMarkdown(),
+            newerThan: nil,
+            through: AppVersion.currentMarketingVersion()
+        )
     ) {
-        self.version = version
-        releaseNotes = PublishedChangelog.releaseNoteItems(from: markdown)
+        if releases.isEmpty {
+            self.releases = [
+                PublishedChangelog.Release(
+                    version: AppVersion.currentMarketingVersion(),
+                    notes: ["No published release notes are bundled with this build."]
+                )
+            ]
+        } else {
+            self.releases = releases
+        }
     }
 
     var body: some View {
@@ -42,21 +52,22 @@ struct UpdateChangelogView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("What’s New")
-                    .font(.title2.weight(.semibold))
+            Text("What’s New")
+                .font(.title2.weight(.semibold))
 
-                Text("Swiftea \(version)")
-                    .foregroundStyle(.secondary)
-            }
+            ForEach(releases) { release in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Swiftea \(release.version)")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(releaseNotes.enumerated()), id: \.offset) { _, note in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•")
-                            .accessibilityHidden(true)
-                        Text(note)
-                            .lineSpacing(4)
+                    ForEach(Array(release.notes.enumerated()), id: \.offset) { _, note in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("•")
+                                .accessibilityHidden(true)
+                            Text(note)
+                                .lineSpacing(4)
+                        }
                     }
                 }
             }
@@ -139,5 +150,10 @@ private struct UpdateChangelogContentHeightKey: PreferenceKey {
 }
 
 #Preview {
-    UpdateChangelogView()
+    UpdateChangelogView(
+        releases: [
+            .init(version: "0.3.0", notes: ["Added a new preference.", "Improved update notes."]),
+            .init(version: "0.2.3", notes: ["Added a privacy policy."])
+        ]
+    )
 }

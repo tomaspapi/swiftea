@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-08-24
+
+- Fixed duplicate empty-mug heating warnings when using the menu bar.
+- Added an option to turn Swiftea’s heating sounds on or off.
+- The post-update “What’s New” window now includes every release missed since the version you last used, organized by version.
+- Added separate controls for automatic update checks and optional automatic installation. Enabling automatic installation also enables the checks it depends on.
+- Added an option to launch Swiftea automatically when you log in to your Mac.
+
 ## 0.2.3 — 2026-07-20
 
 - Added Swiftea’s Privacy Policy to the app, website, and public source.

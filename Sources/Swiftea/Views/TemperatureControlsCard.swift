@@ -10,6 +10,17 @@ struct TemperatureControlsCard: View {
         )
     }
 
+    private var emptyHeatingAlertBinding: Binding<Bool> {
+        Binding(
+            get: { model.emptyHeatingAlertPresentation == .mainWindow },
+            set: { isPresented in
+                if !isPresented {
+                    model.cancelEmptyHeatingAlert()
+                }
+            }
+        )
+    }
+
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 18) {
@@ -66,7 +77,7 @@ struct TemperatureControlsCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .alert("The mug is currently empty", isPresented: $model.isPresentingEmptyHeatingAlert) {
+        .alert("The mug is currently empty", isPresented: emptyHeatingAlertBinding) {
             Button("Turn On") {
                 model.confirmEmptyHeatingAlert()
             }

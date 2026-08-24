@@ -3,15 +3,20 @@ import Testing
 @testable import Swiftea
 
 struct UpdateControllerTests {
-    @Test func startupDisablesLegacyAutomaticUpdateDownloads() throws {
-        let suiteName = "UpdateControllerTests.\(UUID().uuidString)"
-        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { userDefaults.removePersistentDomain(forName: suiteName) }
-        userDefaults.set(true, forKey: UpdateController.sparkleAutomaticDownloadPreferenceKey)
+    @Test func appInfoPlistDefinesUpdateDefaultsAndDailySchedule() throws {
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let infoPlistURL = projectRoot.appendingPathComponent("Config/Info.plist")
+        let data = try Data(contentsOf: infoPlistURL)
+        let propertyList = try PropertyListSerialization.propertyList(from: data, format: nil)
+        let info = try #require(propertyList as? [String: Any])
 
-        UpdateController.disableAutomaticUpdateDownloads(in: userDefaults)
-
-        #expect(userDefaults.bool(forKey: UpdateController.sparkleAutomaticDownloadPreferenceKey) == false)
+        #expect(info["SUEnableAutomaticChecks"] as? Bool == true)
+        #expect(info["SUAutomaticallyUpdate"] as? Bool == false)
+        #expect(info["SUScheduledCheckInterval"] as? Int == 86_400)
+        #expect(info["SUAllowsAutomaticUpdates"] == nil)
     }
 
     @Test func sparkleConfigurationRequiresSignedFeedHardening() {
@@ -79,5 +84,35 @@ struct UpdateControllerTests {
 
         #expect(!UpdateController.hasRequiredSparkleConfiguration(in: unsignedHTTPInfo))
         #expect(!UpdateController.hasRequiredSparkleConfiguration(in: missingPublicKeyInfo))
+    }
+
+    @Test func enablingAutomaticInstallationAlsoEnablesAutomaticChecks() {
+        let current = UpdateController.AutomaticUpdatePreferences(
+            checksEnabled: false,
+            downloadsEnabled: false
+        )
+
+        let updated = UpdateController.automaticUpdatePreferences(
+            current: current,
+            applying: .downloads(true)
+        )
+
+        #expect(updated.checksEnabled)
+        #expect(updated.downloadsEnabled)
+    }
+
+    @Test func disablingAutomaticChecksAlsoDisablesAutomaticInstallation() {
+        let current = UpdateController.AutomaticUpdatePreferences(
+            checksEnabled: true,
+            downloadsEnabled: true
+        )
+
+        let updated = UpdateController.automaticUpdatePreferences(
+            current: current,
+            applying: .checks(false)
+        )
+
+        #expect(!updated.checksEnabled)
+        #expect(!updated.downloadsEnabled)
     }
 }
