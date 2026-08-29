@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f6f3ed" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#303028" media="(prefers-color-scheme: dark)">
     <meta
       name="description"
       content="Swiftea is a native macOS app for keeping your Ember Mug at the right temperature."
@@ -15,6 +17,7 @@
       :root {
         color-scheme: light dark;
         --bg: #f7f8f6;
+        --edge-bg: #f6f3ed;
         --text: #202421;
         --muted: #667069;
         --faint: #8a938d;
@@ -36,6 +39,7 @@
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: #101816;
+          --edge-bg: #303028;
           --text: #f3f6f1;
           --muted: #b8c0b9;
           --faint: #838c85;
@@ -55,7 +59,7 @@
 
       html {
         min-height: 100%;
-        background: var(--bg);
+        background: var(--edge-bg);
       }
 
       body {
@@ -78,7 +82,7 @@
         min-height: 100svh;
         margin: 0 auto;
         flex-direction: column;
-        padding: 24px 0 18px;
+        padding: 24px 0 calc(18px + env(safe-area-inset-bottom, 0px));
       }
 
       .nav {
