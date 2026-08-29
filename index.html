@@ -18,6 +18,7 @@
         color-scheme: light dark;
         --bg: #f7f8f6;
         --edge-bg: #f6f3ed;
+        --edge-clear: rgb(246 243 237 / 0%);
         --text: #202421;
         --muted: #667069;
         --faint: #8a938d;
@@ -40,6 +41,7 @@
         :root {
           --bg: #101816;
           --edge-bg: #303028;
+          --edge-clear: rgb(48 48 40 / 0%);
           --text: #f3f6f1;
           --muted: #b8c0b9;
           --faint: #838c85;
@@ -67,6 +69,7 @@
         min-height: 100svh;
         color: var(--text);
         background:
+          linear-gradient(180deg, var(--edge-bg) 0%, var(--edge-clear) 10%),
           radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--sandstone) 28%, transparent), transparent 34%),
           radial-gradient(circle at 94% 76%, color-mix(in srgb, var(--blue) 10%, transparent), transparent 34%),
           linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--bg) 84%, var(--sandstone-soft) 16%));
