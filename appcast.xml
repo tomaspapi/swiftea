@@ -4,15 +4,15 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Swiftea</title>
         <item>
-            <title>0.3.0</title>
-            <pubDate>Mon, 24 Aug 2026 15:36:27 -0700</pubDate>
-            <sparkle:version>6</sparkle:version>
-            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <title>0.3.1</title>
+            <pubDate>Fri, 28 Aug 2026 17:34:05 -0700</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/tomaspapi/swiftea/releases/download/v0.3.0/Swiftea-0.3.0.zip" length="3912776" type="application/octet-stream" sparkle:edSignature="Q9Bjj9//7XBepPG+uXGlqsFjXb2+kymv9tUiehjV+tHFCJpYW98PSvl3bFOFUA5YSdcs3aTmbi3KdLSCX+OhDQ=="></enclosure>
+            <enclosure url="https://github.com/tomaspapi/swiftea/releases/download/v0.3.1/Swiftea-0.3.1.zip" length="3929989" type="application/octet-stream" sparkle:edSignature="Q3ruYitnXOEPkk+hUwahG6xIxdCVnrthElTx5v7/8mwNWUMdZHS7p1lEsZeDNdyU5ucMDJnvKy7PVOveHjUWDw=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: okwzV4pwiE5OvFdPbCZc1f9xWmrL4xzW96XN36UHNdOqarPH9Sny47nhdNj9ys2dvS6dPMetBKU2WRRDwzNDAQ==
+edSignature: N0QXzpY/m67Dz9MrpRXQoJm1K8MmiUccasfPmhZIToIY8djAodmLNNfjJM9vbJ4/6QD+lpd8eV5jCwGSPckmBg==
 length: 1039
 -->
