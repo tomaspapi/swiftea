@@ -8,12 +8,16 @@ struct SwifteaApp: App {
     @State private var model = AppModel.launchModel()
 
     var body: some Scene {
-        WindowGroup("Swiftea", id: "main") {
+        Window("Swiftea", id: "main") {
             ContentView(model: model)
+                .background { SwifteaMainWindowMarker(appDelegate: appDelegate) }
                 .preferredColorScheme(model.themePreference.colorScheme)
                 .background {
                     AppAppearanceSynchronizer(themePreference: model.themePreference)
-                    AppLocationSynchronizer(preference: model.appLocationPreference)
+                    AppLocationPreferenceSynchronizer(
+                        preference: model.appLocationPreference,
+                        appDelegate: appDelegate
+                    )
                     OnboardingPresentationTrigger(model: model)
                 }
                 .onAppear {
@@ -32,7 +36,7 @@ struct SwifteaApp: App {
         }
 
         MenuBarExtra(isInserted: menuBarExtraBinding) {
-            MenuBarStatusPanel(model: model)
+            MenuBarStatusPanel(model: model, appDelegate: appDelegate)
                 .preferredColorScheme(model.themePreference.colorScheme)
         } label: {
             MenuBarStatusLabel(status: model.menuBarStatusTemperatureLabel)
@@ -132,7 +136,10 @@ struct SwifteaApp: App {
                 .preferredColorScheme(model.themePreference.colorScheme)
                 .background {
                     AppAppearanceSynchronizer(themePreference: model.themePreference)
-                    AppLocationSynchronizer(preference: model.appLocationPreference)
+                    AppLocationPreferenceSynchronizer(
+                        preference: model.appLocationPreference,
+                        appDelegate: appDelegate
+                    )
                 }
         }
     }
@@ -173,23 +180,23 @@ private struct OnboardingPresentationTrigger: View {
     }
 }
 
-private struct AppLocationSynchronizer: NSViewRepresentable {
+private struct AppLocationPreferenceSynchronizer: NSViewRepresentable {
     let preference: AppModel.AppLocationPreference
+    let appDelegate: AppDelegate
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
-        applyActivationPolicy()
+        notifyDelegate()
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        applyActivationPolicy()
+        notifyDelegate()
     }
 
-    private func applyActivationPolicy() {
+    private func notifyDelegate() {
         DispatchQueue.main.async {
-            guard NSApp.activationPolicy() != preference.activationPolicy else { return }
-            NSApp.setActivationPolicy(preference.activationPolicy)
+            appDelegate.updateAppLocationPreference(preference)
         }
     }
 }
@@ -213,6 +220,8 @@ private struct MenuBarStatusLabel: View {
 
 private struct MenuBarStatusPanel: View {
     @Bindable var model: AppModel
+    let appDelegate: AppDelegate
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
@@ -390,7 +399,11 @@ private struct MenuBarStatusPanel: View {
     private var appActions: some View {
         VStack(spacing: 2) {
             MenuBarActionRow("Show Swiftea") {
-                MainWindowPresenter.show(openWindow: openWindow)
+                MainWindowPresenter.show(
+                    appDelegate: appDelegate,
+                    openWindow: openWindow
+                )
+                dismiss()
             }
 
             MenuBarActionRow("Quit Swiftea") {

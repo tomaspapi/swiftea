@@ -3,40 +3,48 @@ import SwiftUI
 
 @MainActor
 enum MainWindowPresenter {
-    static func show(openWindow: OpenWindowAction) {
-        if focusExistingMainWindow() {
-            return
-        }
+    static func show(appDelegate: AppDelegate, openWindow: OpenWindowAction) {
+        AppLog.windowing.notice("Show Swiftea action invoked")
+        guard !appDelegate.requestMainWindowPresentation() else { return }
 
+        AppLog.windowing.notice("Opening main window scene")
         openWindow(id: "main")
-
-        DispatchQueue.main.async {
-            _ = focusExistingMainWindow()
-        }
-    }
-
-    @discardableResult
-    private static func focusExistingMainWindow() -> Bool {
-        let windows = NSApp.windows.filter(\.isSwifteaMainWindow)
-        guard let window = windows.first else {
-            return false
-        }
-
-        for duplicateWindow in windows.dropFirst() {
-            duplicateWindow.close()
-        }
-
-        window.deminiaturize(nil)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        return true
     }
 }
 
-private extension NSWindow {
+extension NSWindow {
     var isSwifteaMainWindow: Bool {
-        guard title == "Swiftea" else { return false }
+        identifier?.rawValue == "main"
+    }
+}
 
-        return true
+struct SwifteaMainWindowMarker: NSViewRepresentable {
+    let appDelegate: AppDelegate
+
+    func makeNSView(context: Context) -> SwifteaMainWindowMarkerView {
+        let view = SwifteaMainWindowMarkerView(frame: .zero)
+        view.appDelegate = appDelegate
+        return view
+    }
+
+    func updateNSView(_ nsView: SwifteaMainWindowMarkerView, context: Context) {
+        nsView.appDelegate = appDelegate
+        nsView.registerMainWindowIfAvailable()
+    }
+}
+
+@MainActor
+final class SwifteaMainWindowMarkerView: NSView {
+    weak var appDelegate: AppDelegate?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        registerMainWindowIfAvailable()
+    }
+
+    func registerMainWindowIfAvailable() {
+        guard let window else { return }
+        window.identifier = NSUserInterfaceItemIdentifier("main")
+        appDelegate?.registerMainWindow(window)
     }
 }

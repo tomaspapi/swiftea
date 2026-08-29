@@ -5,6 +5,59 @@ import Testing
 
 @MainActor
 struct AppModelTests {
+    @Test func swiftUIMainWindowSceneIdentifierIsRecognized() {
+        let window = NSWindow()
+        window.identifier = NSUserInterfaceItemIdentifier("main")
+
+        #expect(window.isSwifteaMainWindow)
+    }
+
+    @Test func reopeningMainWindowInvalidatesThePreviousCloseCallback() {
+        var state = MainWindowPresentationState()
+        let initialRegistration = state.registerWindow()
+        #expect(initialRegistration?.shouldActivate == false)
+
+        let closeGeneration = state.closeWindow()
+        let reopenGeneration = state.requestPresentation()
+
+        #expect(!state.shouldApplyClose(generation: closeGeneration))
+        let reopenedPresentationCompleted = state.completePresentation(generation: reopenGeneration)
+        #expect(reopenedPresentationCompleted)
+        #expect(state.lifecycle == .open)
+        #expect(state.requiresRegularActivationPolicy)
+    }
+
+    @Test func closedMainWindowRejectsLateRegistrationUntilReopeningIsRequested() {
+        var state = MainWindowPresentationState()
+        _ = state.registerWindow()
+        _ = state.closeWindow()
+
+        let staleRegistration = state.registerWindow()
+        #expect(staleRegistration == nil)
+        #expect(state.lifecycle == .closed)
+        #expect(!state.requiresRegularActivationPolicy)
+
+        let reopenGeneration = state.requestPresentation()
+        let reopenedRegistration = state.registerWindow()
+
+        #expect(reopenedRegistration?.generation == reopenGeneration)
+        #expect(reopenedRegistration?.shouldActivate == true)
+    }
+
+    @Test func stalePresentationCannotCompleteANewerWindowGeneration() {
+        var state = MainWindowPresentationState()
+        let firstGeneration = state.requestPresentation()
+        _ = state.closeWindow()
+        let secondGeneration = state.requestPresentation()
+
+        let stalePresentationCompleted = state.completePresentation(generation: firstGeneration)
+        #expect(!stalePresentationCompleted)
+        #expect(state.activationPending)
+        let currentPresentationCompleted = state.completePresentation(generation: secondGeneration)
+        #expect(currentPresentationCompleted)
+        #expect(!state.activationPending)
+    }
+
     @Test func launchAtLoginUsesTheSystemLoginItemAsItsSourceOfTruth() {
         let loginItemManager = RecordingLoginItemManager(status: .enabled)
         let model = AppModel(
@@ -694,6 +747,18 @@ struct AppModelTests {
         let model = AppModel(startBluetooth: false, preferences: preferences)
 
         #expect(model.appLocationPreference == .menuBar)
+    }
+
+    @Test func visibleMainWindowAlwaysUsesRegularAppActivation() {
+        for preference in AppModel.AppLocationPreference.allCases {
+            #expect(preference.activationPolicy(mainWindowIsPresented: true) == .regular)
+        }
+    }
+
+    @Test func closedMainWindowUsesSavedDockPresence() {
+        #expect(AppModel.AppLocationPreference.dock.activationPolicy(mainWindowIsPresented: false) == .regular)
+        #expect(AppModel.AppLocationPreference.menuBar.activationPolicy(mainWindowIsPresented: false) == .accessory)
+        #expect(AppModel.AppLocationPreference.dockAndMenuBar.activationPolicy(mainWindowIsPresented: false) == .regular)
     }
 
     @Test func onboardingPresentsOnceOnBrandNewInstallUntilCompleted() {

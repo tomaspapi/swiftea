@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.3.1 — 2026-08-28
+
+- Fixed “Show Swiftea” sometimes opening the window in the background without its Dock icon or app menus.
+
 ## 0.3.0 — 2026-08-24
 
 - Fixed duplicate empty-mug heating warnings when using the menu bar.

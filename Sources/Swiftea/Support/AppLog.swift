@@ -5,4 +5,5 @@ enum AppLog {
     static let power = Logger(subsystem: "com.tom.swiftea", category: "Power")
     static let settings = Logger(subsystem: "com.tom.swiftea", category: "Settings")
     static let sidebar = Logger(subsystem: "com.tom.swiftea", category: "Sidebar")
+    static let windowing = Logger(subsystem: "com.tom.swiftea", category: "Windowing")
 }

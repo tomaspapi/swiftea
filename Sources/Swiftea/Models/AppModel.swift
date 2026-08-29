@@ -390,8 +390,12 @@ final class AppModel {
             }
         }
 
-        var activationPolicy: NSApplication.ActivationPolicy {
-            includesDock ? .regular : .accessory
+        func activationPolicy(mainWindowIsPresented: Bool) -> NSApplication.ActivationPolicy {
+            if mainWindowIsPresented {
+                return .regular
+            }
+
+            return includesDock ? .regular : .accessory
         }
     }
 

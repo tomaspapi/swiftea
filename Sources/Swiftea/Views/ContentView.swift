@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
@@ -58,6 +59,7 @@ struct ContentView: View {
                 .disabled(!model.canOpenDiscoveryWindow)
             }
         }
+        .toolbarColorScheme(colorScheme)
         .sheet(isPresented: $model.isPresentingMugNameSheet) {
             SaveMugNameSheet(model: model)
         }
