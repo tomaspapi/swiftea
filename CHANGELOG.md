@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.3.2 — 2026-08-30
+
+- Fixed the toolbar cutting across the sidebar in Dark mode.
+
 ## 0.3.1 — 2026-08-28
 
 - Fixed “Show Swiftea” sometimes opening the window in the background without its Dock icon or app menus.

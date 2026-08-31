@@ -3,7 +3,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var model: AppModel
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
@@ -35,6 +34,8 @@ struct ContentView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
+        // Scene/window appearance owns the theme. A toolbar color-scheme override
+        // draws full-width chrome across the native sidebar on macOS 26.
         .toolbar {
             ToolbarSpacer(.flexible, placement: .primaryAction)
 
@@ -59,7 +60,6 @@ struct ContentView: View {
                 .disabled(!model.canOpenDiscoveryWindow)
             }
         }
-        .toolbarColorScheme(colorScheme)
         .sheet(isPresented: $model.isPresentingMugNameSheet) {
             SaveMugNameSheet(model: model)
         }
