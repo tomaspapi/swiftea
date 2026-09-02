@@ -6,7 +6,7 @@ labels:
 body:
   - type: markdown
     attributes:
-      value: Thanks for taking the time to report this.
+      value: Thanks for reporting a problem. Swiftea currently supports Ember Mug 2. Do not share full serial numbers, private logs, or sensitive local paths.
 
   - type: textarea
     id: summary
@@ -25,6 +25,14 @@ body:
       required: true
 
   - type: input
+    id: swiftea
+    attributes:
+      label: Swiftea version
+      placeholder: "0.4.0"
+    validations:
+      required: true
+
+  - type: input
     id: macos
     attributes:
       label: macOS version
@@ -36,10 +44,11 @@ body:
     id: mug
     attributes:
       label: Mug model
+      description: Include this when the problem involves a mug.
       placeholder: "Ember Mug 2, 14 oz"
 
   - type: textarea
     id: notes
     attributes:
       label: Notes
-      description: Add screenshots, logs, or extra context if useful. Avoid sharing information you consider private.
+      description: Add screenshots or extra context if useful. Review them for private information before posting.

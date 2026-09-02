@@ -1,33 +1,27 @@
-# Contributing
+# Contributing to Swiftea
 
-Thanks for taking an interest in Swiftea.
+Swiftea is a personal, maintainer-led project. Bug reports and suggestions are welcome, but external code contributions and pull requests are not accepted.
 
-Swiftea is intentionally small. Good contributions usually make the app more reliable, more native to macOS, or easier to maintain without expanding the product into a general Bluetooth dashboard.
+## Report a bug
 
-## Development
+Use the repository’s bug report form. Include the Swiftea version, macOS version, mug model when relevant, expected behavior, and observed behavior. Do not post full serial numbers, private logs, or sensitive local paths.
 
-Run the app:
+## Suggest an improvement
 
-```zsh
-./script/build_and_run.sh
-```
+Use the feature request form to describe the problem or workflow first, followed by the behavior you would find useful. Suggestions may inform the roadmap, but submitting one does not promise implementation.
 
-Run tests:
+## Security reports
 
-```zsh
-swift test --scratch-path "${TMPDIR%/}/swiftea-swiftpm-build"
-```
+Follow the [Security Policy](SECURITY.md). Do not disclose a suspected vulnerability in a public issue.
 
-If you change Xcode project structure, update `project.yml` and regenerate `Swiftea.xcodeproj` with XcodeGen.
+## Code and forks
 
-## Pull Requests
+The Swiftea repository does not accept external code contributions or pull requests. Swiftea’s source code is released under the highly permissive Zero-Clause BSD (0BSD) License, so you are welcome to fork it, modify it, and use it for any purpose permitted by the license.
 
-- Keep changes focused.
-- Prefer native macOS controls and behaviors.
-- Add or update tests when changing model, Bluetooth parsing, persistence, or notification behavior.
-- Avoid adding network services, accounts, analytics, or cloud dependencies.
-- For Bluetooth behavior changes, describe the device model, firmware if known, and manual validation performed.
+## Supported hardware
 
-## Project Scope
+Swiftea is developed and tested with Ember Mug 2, the only model currently supported. Other Ember products have not been validated and should be treated as unsupported, even if Swiftea happens to detect them.
 
-Swiftea is currently centered on Ember Mug 2. Support for other Ember devices should be treated as hardware-specific work and should be validated with real devices whenever possible.
+## Build and test
+
+Run the app with `./script/build_and_run.sh` and run tests with `swift test --scratch-path "${TMPDIR%/}/swiftea-swiftpm-build"`.
