@@ -27,6 +27,7 @@ enum AppPreferencesKey {
     static let chartTimeframePreference = "swiftea.chartTimeframePreference"
     static let keepsRunningWhenWindowClosed = "swiftea.keepsRunningWhenWindowClosed"
     static let appLocationPreference = "swiftea.appLocationPreference"
+    static let showsMenuBarItemOnlyWhileMugActive = "swiftea.showsMenuBarItemOnlyWhileMugActive"
     static let targetTemperatureNotificationsEnabled = "swiftea.targetTemperatureNotificationsEnabled"
     static let batteryFullyChargedNotificationsEnabled = "swiftea.batteryFullyChargedNotificationsEnabled"
     static let batteryFullyDischargedNotificationsEnabled = "swiftea.batteryFullyDischargedNotificationsEnabled"

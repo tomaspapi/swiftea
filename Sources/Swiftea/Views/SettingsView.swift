@@ -100,6 +100,19 @@ struct SettingsView: View {
                 appLocationMenu
             }
 
+            LabeledContent {
+                Toggle("", isOn: activeOnlyMenuBarToggleBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            } label: {
+                Label("Show menu bar item only while a mug is active", systemImage: "arrow.turn.down.right")
+                    .imageScale(.small)
+                    .foregroundStyle(
+                        model.appLocationPreference.includesMenuBar ? Color.primary : Color.secondary
+                    )
+            }
+            .disabled(!model.appLocationPreference.includesMenuBar)
+
             LabeledContent("After closing window") {
                 windowCloseBehaviorMenu
             }
@@ -254,6 +267,17 @@ struct SettingsView: View {
             },
             set: { isEnabled in
                 model.setLaunchesAtLogin(isEnabled)
+            }
+        )
+    }
+
+    private var activeOnlyMenuBarToggleBinding: Binding<Bool> {
+        Binding(
+            get: {
+                model.showsMenuBarItemOnlyWhileMugActive
+            },
+            set: { isEnabled in
+                model.setShowsMenuBarItemOnlyWhileMugActive(isEnabled)
             }
         )
     }

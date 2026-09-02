@@ -513,6 +513,7 @@ final class AppModel {
     @ObservationIgnored private var initialHeatingSafetyByMug: [String: InitialHeatingSafetyState] = [:]
     @ObservationIgnored private var editingTargetTemperatureMugIdentifiers: Set<String> = []
     @ObservationIgnored private var sideEffectMugIdentifierOverride: String?
+    @ObservationIgnored private var lastLoggedMenuBarInsertionState: Bool?
     @ObservationIgnored private let heatingToggleSoundPlayer: any HeatingToggleSoundPlaying
     @ObservationIgnored private var lastLoggedHistoryStateByMug: [String: LoggedMugHistoryState] = [:]
     @ObservationIgnored private var lastTrustedBatteryReadingByMug: [String: TrustedBatteryReading] = [:]
@@ -637,6 +638,20 @@ final class AppModel {
     var appLocationPreference: AppLocationPreference = .dockAndMenuBar {
         didSet {
             preferences.set(appLocationPreference.rawValue, forKey: AppPreferencesKey.appLocationPreference)
+            if !appLocationPreference.includesMenuBar, showsMenuBarItemOnlyWhileMugActive {
+                showsMenuBarItemOnlyWhileMugActive = false
+            }
+            logMenuBarInsertionTransitionIfNeeded(reason: "location preference changed")
+        }
+    }
+    private(set) var showsMenuBarItemOnlyWhileMugActive = false {
+        didSet {
+            guard oldValue != showsMenuBarItemOnlyWhileMugActive else { return }
+            preferences.set(
+                showsMenuBarItemOnlyWhileMugActive,
+                forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive
+            )
+            logMenuBarInsertionTransitionIfNeeded(reason: "active-mug visibility preference changed")
         }
     }
     private(set) var launchesAtLogin = false
@@ -853,6 +868,7 @@ final class AppModel {
         self.timeFormatPreference = resolvedSystemPreferenceDefaults.timeFormatPreference
         isRestoringSavedPreferences = false
         restoreSavedPreferences()
+        lastLoggedMenuBarInsertionState = shouldInsertMenuBarExtra
         refreshLaunchAtLoginStatus()
         restoreOnboardingPresentationState()
         restoreUpdateChangelogPresentationState()
@@ -1122,11 +1138,43 @@ final class AppModel {
     }
 
     var menuBarStatusTemperatureLabel: String? {
-        guard shouldShowMugDashboard, isEmpty != true, let currentTemperatureCelsius else {
+        guard
+            let identifier = menuBarPresentedMugIdentifier,
+            let session = mugSessionsByIdentifier[identifier],
+            isDashboardConnected(session),
+            session.isEmpty != true,
+            let currentTemperatureCelsius = session.currentTemperatureCelsius
+        else {
             return nil
         }
 
         return Self.format(celsius: currentTemperatureCelsius, unit: temperatureUnitPreference)
+    }
+
+    var hasActiveMug: Bool {
+        menuBarActiveMugCount > 0
+    }
+
+    var shouldInsertMenuBarExtra: Bool {
+        guard appLocationPreference.includesMenuBar else { return false }
+        return !showsMenuBarItemOnlyWhileMugActive || hasActiveMug
+    }
+
+    var menuBarPresentedMugIdentifier: String? {
+        guard showsMenuBarItemOnlyWhileMugActive else {
+            return selectedMugIdentifier
+        }
+
+        if
+            let selectedMugIdentifier,
+            isActiveMugSession(mugSessionsByIdentifier[selectedMugIdentifier])
+        {
+            return selectedMugIdentifier
+        }
+
+        return orderedKnownMugIdentifiers().first { identifier in
+            isActiveMugSession(mugSessionsByIdentifier[identifier])
+        }
     }
 
     var menuBarCurrentTemperatureLine: String {
@@ -1837,6 +1885,32 @@ final class AppModel {
         soundsEnabled = isEnabled
     }
 
+    func setShowsMenuBarItemOnlyWhileMugActive(_ isEnabled: Bool) {
+        let normalizedValue = appLocationPreference.includesMenuBar && isEnabled
+        guard normalizedValue != showsMenuBarItemOnlyWhileMugActive else {
+            if isEnabled != normalizedValue {
+                preferences.set(normalizedValue, forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive)
+            }
+            return
+        }
+        showsMenuBarItemOnlyWhileMugActive = normalizedValue
+    }
+
+    func handleMenuBarExtraInsertionChange(_ isInserted: Bool) {
+        guard !isInserted, shouldInsertMenuBarExtra else { return }
+        appLocationPreference = .dock
+    }
+
+    func prepareSelectedMugForMenuBarPresentation() {
+        guard
+            showsMenuBarItemOnlyWhileMugActive,
+            let menuBarPresentedMugIdentifier,
+            menuBarPresentedMugIdentifier != selectedMugIdentifier
+        else { return }
+
+        selectSidebarMug(identifier: menuBarPresentedMugIdentifier)
+    }
+
     func setLaunchesAtLogin(_ isEnabled: Bool) {
         guard isEnabled != launchesAtLogin else { return }
 
@@ -2380,6 +2454,7 @@ final class AppModel {
         session.canWriteTargetTemperature = canWriteTargetTemperature
         mugSessionsByIdentifier[identifier] = session
         synchronizeIdleSleepPrevention()
+        logMenuBarInsertionTransitionIfNeeded(reason: "mug state updated")
         if targetTemperatureDraftsByMug[identifier] != targetTemperatureDraftCelsius {
             targetTemperatureDraftsByMug[identifier] = targetTemperatureDraftCelsius
             persistTargetTemperatureDraftsByMug()
@@ -2418,6 +2493,7 @@ final class AppModel {
         mugSessionsByIdentifier[identifier] = session
         removeRuntimeState(for: identifier)
         synchronizeIdleSleepPrevention()
+        logMenuBarInsertionTransitionIfNeeded(reason: "mug disconnected")
     }
 
     private func removeRuntimeState(for identifier: String) {
@@ -2626,6 +2702,34 @@ final class AppModel {
         mugSessionsByIdentifier.values.contains { session in
             session.connectionState == .connected
         }
+    }
+
+    private var menuBarActiveMugCount: Int {
+        mugSessionsByIdentifier.values.filter { session in
+            isActiveMugSession(session)
+        }.count
+    }
+
+    private func isActiveMugSession(_ session: MugSessionState?) -> Bool {
+        guard let session else { return false }
+        return session.connectionState == .connected
+            && session.isEmpty == false
+            && !session.isTemperatureControlOff
+    }
+
+    private func logMenuBarInsertionTransitionIfNeeded(reason: String) {
+        guard !isRestoringSavedPreferences else { return }
+
+        let isInserted = shouldInsertMenuBarExtra
+        defer { lastLoggedMenuBarInsertionState = isInserted }
+        guard
+            let lastLoggedMenuBarInsertionState,
+            lastLoggedMenuBarInsertionState != isInserted
+        else { return }
+
+        AppLog.presence.notice(
+            "Menu bar insertion changed inserted=\(isInserted, privacy: .public) presence=\(self.appLocationPreference.rawValue, privacy: .public) activeOnly=\(self.showsMenuBarItemOnlyWhileMugActive, privacy: .public) activeMugs=\(self.menuBarActiveMugCount, privacy: .public) reason=\(reason, privacy: .public)"
+        )
     }
 
     private func synchronizeIdleSleepPrevention() {
@@ -2943,6 +3047,12 @@ final class AppModel {
             self.appLocationPreference = appLocationPreference
         }
 
+        if let savedShowsMenuBarItemOnlyWhileMugActive = preferences.bool(
+            forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive
+        ) {
+            setShowsMenuBarItemOnlyWhileMugActive(savedShowsMenuBarItemOnlyWhileMugActive)
+        }
+
         if let savedTargetTemperatureNotificationsEnabled = preferences.bool(forKey: AppPreferencesKey.targetTemperatureNotificationsEnabled) {
             targetTemperatureNotificationsEnabled = savedTargetTemperatureNotificationsEnabled
         }
@@ -3046,6 +3156,7 @@ final class AppModel {
 
         let boolKeys = [
             AppPreferencesKey.keepsRunningWhenWindowClosed,
+            AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive,
             AppPreferencesKey.targetTemperatureNotificationsEnabled,
             AppPreferencesKey.batteryFullyChargedNotificationsEnabled,
             AppPreferencesKey.batteryFullyDischargedNotificationsEnabled,
@@ -3385,6 +3496,7 @@ final class AppModel {
             session.targetTemperatureDraftCelsius = targetTemperatureDraftCelsius
             mugSessionsByIdentifier[transientMugIdentifier] = session
         }
+        logMenuBarInsertionTransitionIfNeeded(reason: "heating state changed")
         if soundsEnabled {
             heatingToggleSoundPlayer.playHeatingToggleSound(isEnabled: isEnabled)
         }

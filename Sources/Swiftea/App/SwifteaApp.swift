@@ -147,19 +147,10 @@ struct SwifteaApp: App {
     private var menuBarExtraBinding: Binding<Bool> {
         Binding(
             get: {
-                model.appLocationPreference.includesMenuBar
+                model.shouldInsertMenuBarExtra
             },
             set: { isInserted in
-                guard !isInserted else { return }
-
-                switch model.appLocationPreference {
-                case .dockAndMenuBar:
-                    model.appLocationPreference = .dock
-                case .menuBar:
-                    model.appLocationPreference = .dock
-                case .dock:
-                    break
-                }
+                model.handleMenuBarExtraInsertionChange(isInserted)
             }
         )
     }
@@ -279,6 +270,12 @@ private struct MenuBarStatusPanel: View {
         .controlSize(.small)
         .padding(12)
         .frame(width: 226)
+        .onAppear {
+            model.prepareSelectedMugForMenuBarPresentation()
+        }
+        .onChange(of: model.menuBarPresentedMugIdentifier) { _, _ in
+            model.prepareSelectedMugForMenuBarPresentation()
+        }
     }
 
     private func panelHeader<Content: View>(

@@ -748,6 +748,144 @@ struct AppModelTests {
 
         #expect(model.appLocationPreference == .menuBar)
     }
+    @Test func activeOnlyMenuBarPreferenceDefaultsOffAndPersists() {
+        let preferences = InMemoryAppPreferencesStore()
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        model.appLocationPreference = .menuBar
+        #expect(!model.showsMenuBarItemOnlyWhileMugActive)
+
+        model.setShowsMenuBarItemOnlyWhileMugActive(true)
+
+        #expect(model.showsMenuBarItemOnlyWhileMugActive)
+        #expect(preferences.bool(forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive) == true)
+    }
+
+    @Test func activeOnlyMenuBarPreferenceIsRestoredForMenuBarPresence() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("menuBar", forKey: AppPreferencesKey.appLocationPreference)
+        preferences.set(true, forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive)
+
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(model.appLocationPreference == .menuBar)
+        #expect(model.showsMenuBarItemOnlyWhileMugActive)
+    }
+
+    @Test func dockPresenceNormalizesActiveOnlyMenuBarPreferenceOff() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("dock", forKey: AppPreferencesKey.appLocationPreference)
+        preferences.set(true, forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive)
+
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(model.appLocationPreference == .dock)
+        #expect(!model.showsMenuBarItemOnlyWhileMugActive)
+        #expect(preferences.bool(forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive) == false)
+    }
+
+    @Test func switchingToDockTurnsActiveOnlyMenuBarPreferenceOff() {
+        let preferences = InMemoryAppPreferencesStore()
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+        model.appLocationPreference = .menuBar
+        model.setShowsMenuBarItemOnlyWhileMugActive(true)
+
+        model.appLocationPreference = .dock
+
+        #expect(!model.showsMenuBarItemOnlyWhileMugActive)
+        #expect(preferences.bool(forKey: AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive) == false)
+
+        model.appLocationPreference = .menuBar
+        #expect(!model.showsMenuBarItemOnlyWhileMugActive)
+    }
+
+    @Test func activeOnlyMenuBarInsertionFollowsConfirmedMugState() {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+        model.appLocationPreference = .menuBar
+        model.setShowsMenuBarItemOnlyWhileMugActive(true)
+
+        #expect(!model.hasActiveMug)
+        #expect(!model.shouldInsertMenuBarExtra)
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, isEmpty: nil))
+        #expect(!model.hasActiveMug)
+        #expect(!model.shouldInsertMenuBarExtra)
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, isEmpty: false))
+        #expect(model.hasActiveMug)
+        #expect(model.shouldInsertMenuBarExtra)
+
+        model.setTemperatureControlEnabled(false)
+        #expect(!model.hasActiveMug)
+        #expect(!model.shouldInsertMenuBarExtra)
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 0, isEmpty: true))
+        #expect(!model.hasActiveMug)
+
+        model.apply(
+            snapshot: connectedSnapshot(
+                targetTemperatureCelsius: 58,
+                discoveryPhase: .disconnected,
+                isEmpty: false
+            )
+        )
+        #expect(!model.hasActiveMug)
+        #expect(!model.shouldInsertMenuBarExtra)
+    }
+
+    @Test func modelDrivenMenuBarHidingDoesNotRewritePresenceButUserRemovalDoes() {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+        model.appLocationPreference = .menuBar
+        model.setShowsMenuBarItemOnlyWhileMugActive(true)
+
+        model.handleMenuBarExtraInsertionChange(false)
+
+        #expect(model.appLocationPreference == .menuBar)
+        #expect(model.showsMenuBarItemOnlyWhileMugActive)
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, isEmpty: false))
+        #expect(model.shouldInsertMenuBarExtra)
+
+        model.handleMenuBarExtraInsertionChange(false)
+
+        #expect(model.appLocationPreference == .dock)
+        #expect(!model.showsMenuBarItemOnlyWhileMugActive)
+    }
+
+    @Test func activeOnlyMenuBarUsesAnyActiveMugWithoutPassiveSelectionChanges() {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+        model.appLocationPreference = .menuBar
+        model.setShowsMenuBarItemOnlyWhileMugActive(true)
+        model.apply(
+            snapshot: connectedSnapshot(
+                targetTemperatureCelsius: 58,
+                activePeripheralIdentifier: "MUG-1",
+                isEmpty: false
+            )
+        )
+        model.apply(
+            snapshot: connectedSnapshot(
+                targetTemperatureCelsius: 59,
+                activePeripheralIdentifier: "MUG-2",
+                isEmpty: false,
+                currentTemperatureCelsius: 55
+            )
+        )
+
+        #expect(model.selectedMugIdentifier == "MUG-1")
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.setTemperatureControlEnabled(false)
+
+        #expect(model.hasActiveMug)
+        #expect(model.shouldInsertMenuBarExtra)
+        #expect(model.menuBarPresentedMugIdentifier == "MUG-2")
+        #expect(model.menuBarStatusTemperatureLabel == "55°C")
+        #expect(model.selectedMugIdentifier == "MUG-1")
+
+        model.prepareSelectedMugForMenuBarPresentation()
+
+        #expect(model.selectedMugIdentifier == "MUG-2")
+    }
 
     @Test func visibleMainWindowAlwaysUsesRegularAppActivation() {
         for preference in AppModel.AppLocationPreference.allCases {
@@ -2601,7 +2739,7 @@ struct AppModelTests {
         activePeripheralIdentifier: String = "MUG-1",
         detailMessage: String = "Connected.",
         canWriteTargetTemperature: Bool = true,
-        isEmpty: Bool = false,
+        isEmpty: Bool? = false,
         currentTemperatureCelsius: Double? = 54,
         batteryLevel: Double? = 0.7,
         isCharging: Bool = false,

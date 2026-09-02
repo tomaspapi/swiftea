@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.4.0 — 2026-09-02
+
+- Added an option to show Swiftea in the menu bar only while a mug is active.
+
 ## 0.3.2 — 2026-08-30
 
 - Fixed the toolbar cutting across the sidebar in Dark mode.
