@@ -59,6 +59,56 @@ enum MugHistoryMetric: String, CaseIterable, Identifiable {
     }
 }
 
+enum MugHistoryChartSelection: String, CaseIterable, Identifiable {
+    case battery
+    case temperature
+    case both
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .battery:
+            "Battery"
+        case .temperature:
+            "Temperature"
+        case .both:
+            "Both"
+        }
+    }
+
+    var metrics: [MugHistoryMetric] {
+        switch self {
+        case .battery:
+            [.battery]
+        case .temperature:
+            [.temperature]
+        case .both:
+            [.battery, .temperature]
+        }
+    }
+
+    var leadingMetric: MugHistoryMetric {
+        switch self {
+        case .temperature:
+            .temperature
+        case .battery, .both:
+            .battery
+        }
+    }
+
+    var trailingMetric: MugHistoryMetric? {
+        self == .both ? .temperature : nil
+    }
+}
+
+enum MugHistoryChartScale {
+    static func normalizedFraction(for value: Double, in domain: ClosedRange<Double>) -> Double {
+        let valueRange = max(domain.upperBound - domain.lowerBound, 1)
+        return min(max((value - domain.lowerBound) / valueRange, 0), 1)
+    }
+}
+
 struct MugHistoryChartPoint: Equatable, Identifiable {
     let id: String
     let timestamp: Date

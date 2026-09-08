@@ -23,6 +23,7 @@ enum AppPreferencesKey {
     static let savedMugNames = "swiftea.savedMugNames"
     static let themePreference = "swiftea.themePreference"
     static let temperatureUnitPreference = "swiftea.temperatureUnitPreference"
+    static let showsCelsiusDecimals = "swiftea.showsCelsiusDecimals"
     static let timeFormatPreference = "swiftea.timeFormatPreference"
     static let chartTimeframePreference = "swiftea.chartTimeframePreference"
     static let keepsRunningWhenWindowClosed = "swiftea.keepsRunningWhenWindowClosed"

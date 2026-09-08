@@ -2,48 +2,48 @@ import SwiftUI
 
 struct HistoryChartCard: View {
     @Bindable var model: AppModel
-    @State private var selectedMetric: MugHistoryMetric = .battery
-
-    private var lineColor: Color {
-        switch selectedMetric {
-        case .battery:
-            .green
-        case .temperature:
-            .orange
-        }
-    }
+    @State private var selectedChart: MugHistoryChartSelection = .battery
 
     var body: some View {
         DashboardCard {
             TimelineView(.periodic(from: Date(), by: 60)) { context in
                 let now = stableChartNow(from: context.date)
                 let windowStart = now.addingTimeInterval(-model.chartTimeframePreference.duration)
-                let segments = model.historyChartSegments(metric: selectedMetric, now: now)
                 let xAxisTicks = xAxisTickDates(from: windowStart, through: now)
-                let yAxisValues = model.historyChartYAxisValues(for: selectedMetric)
-                let yDomain = model.historyChartYDomain(for: selectedMetric)
+                let series = selectedChart.metrics.map { metric in
+                    HistoryChartSeries(
+                        segments: model.historyChartSegments(metric: metric, now: now),
+                        yDomain: model.historyChartYDomain(for: metric),
+                        lineColor: lineColor(for: metric)
+                    )
+                }
+                let leadingYAxis = yAxis(
+                    for: selectedChart.leadingMetric,
+                    usesSeriesColor: selectedChart == .both
+                )
+                let trailingYAxis = selectedChart.trailingMetric.map {
+                    yAxis(for: $0, usesSeriesColor: true)
+                }
 
                 VStack(spacing: 8) {
-                    Picker("", selection: $selectedMetric) {
-                        ForEach(MugHistoryMetric.allCases) { metric in
-                            Text(metric.title)
-                                .tag(metric)
+                    Picker("", selection: $selectedChart) {
+                        ForEach(MugHistoryChartSelection.allCases) { selection in
+                            Text(selection.title)
+                                .tag(selection)
                         }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .controlSize(.small)
-                    .frame(width: 168)
+                    .frame(width: 252)
 
                     LightweightHistoryLineChart(
-                        segments: segments,
+                        series: series,
                         xAxisTicks: xAxisTicks,
-                        yAxisValues: yAxisValues,
-                        yDomain: yDomain,
+                        leadingYAxis: leadingYAxis,
+                        trailingYAxis: trailingYAxis,
                         windowStart: windowStart,
                         now: now,
-                        lineColor: lineColor,
-                        yAxisLabel: yAxisLabel(for:),
                         xAxisLabel: model.historyChartTimeLabel(for:),
                         xAxisLabelWidth: model.timeFormatPreference.chartXAxisLabelWidth,
                         xAxisLabelFontSize: model.timeFormatPreference.chartXAxisLabelFontSize,
@@ -81,8 +81,27 @@ struct HistoryChartCard: View {
         return ticks
     }
 
-    private func yAxisLabel(for value: Double) -> String {
-        switch selectedMetric {
+    private func lineColor(for metric: MugHistoryMetric) -> Color {
+        switch metric {
+        case .battery:
+            .green
+        case .temperature:
+            .orange
+        }
+    }
+
+    private func yAxis(for metric: MugHistoryMetric, usesSeriesColor: Bool) -> HistoryChartAxis {
+        HistoryChartAxis(
+            marks: model.historyChartYAxisValues(for: metric).map {
+                HistoryChartAxisMark(value: $0, label: yAxisLabel(for: $0, metric: metric))
+            },
+            domain: model.historyChartYDomain(for: metric),
+            labelColor: usesSeriesColor ? lineColor(for: metric) : .secondary
+        )
+    }
+
+    private func yAxisLabel(for value: Double, metric: MugHistoryMetric) -> String {
+        switch metric {
         case .battery:
             "\(Int(value.rounded()))%"
         case .temperature:
@@ -96,15 +115,32 @@ struct HistoryChartCard: View {
     }
 }
 
-private struct LightweightHistoryLineChart: View {
+private struct HistoryChartSeries {
     let segments: [MugHistoryChartSegment]
-    let xAxisTicks: [Date]
-    let yAxisValues: [Double]
     let yDomain: ClosedRange<Double>
+    let lineColor: Color
+}
+
+private struct HistoryChartAxis {
+    let marks: [HistoryChartAxisMark]
+    let domain: ClosedRange<Double>
+    let labelColor: Color
+}
+
+private struct HistoryChartAxisMark: Identifiable {
+    let value: Double
+    let label: String
+
+    var id: Double { value }
+}
+
+private struct LightweightHistoryLineChart: View {
+    let series: [HistoryChartSeries]
+    let xAxisTicks: [Date]
+    let leadingYAxis: HistoryChartAxis
+    let trailingYAxis: HistoryChartAxis?
     let windowStart: Date
     let now: Date
-    let lineColor: Color
-    let yAxisLabel: (Double) -> String
     let xAxisLabel: (Date) -> String
     let xAxisLabelWidth: CGFloat
     let xAxisLabelFontSize: CGFloat
@@ -112,25 +148,49 @@ private struct LightweightHistoryLineChart: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let layout = ChartLayout(size: geometry.size, xAxisLabelWidth: xAxisLabelWidth)
+            let layout = ChartLayout(
+                size: geometry.size,
+                xAxisLabelWidth: xAxisLabelWidth,
+                hasTrailingYAxis: trailingYAxis != nil
+            )
 
             ZStack(alignment: .topLeading) {
                 Canvas { context, size in
-                    let layout = ChartLayout(size: size, xAxisLabelWidth: xAxisLabelWidth)
+                    let layout = ChartLayout(
+                        size: size,
+                        xAxisLabelWidth: xAxisLabelWidth,
+                        hasTrailingYAxis: trailingYAxis != nil
+                    )
                     drawGrid(in: &context, layout: layout)
                     drawSegments(in: &context, layout: layout)
                 }
 
-                ForEach(yAxisValues, id: \.self) { value in
-                    Text(yAxisLabel(value))
+                ForEach(leadingYAxis.marks) { mark in
+                    Text(mark.label)
                         .font(HistoryChartLayoutMetrics.axisLabelFont)
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(leadingYAxis.labelColor)
                         .frame(width: HistoryChartLayoutMetrics.yAxisLabelWidth, alignment: .trailing)
                         .position(
                             x: HistoryChartLayoutMetrics.yAxisLabelWidth / 2,
-                            y: yPosition(for: value, layout: layout)
+                            y: yPosition(for: mark.value, in: leadingYAxis.domain, layout: layout)
                         )
+                }
+
+                if let trailingYAxis {
+                    ForEach(trailingYAxis.marks) { mark in
+                        Text(mark.label)
+                            .font(HistoryChartLayoutMetrics.axisLabelFont)
+                            .monospacedDigit()
+                            .foregroundStyle(trailingYAxis.labelColor)
+                            .frame(width: HistoryChartLayoutMetrics.yAxisLabelWidth, alignment: .leading)
+                            .position(
+                                x: layout.plotMaxX
+                                    + HistoryChartLayoutMetrics.yAxisLabelGap
+                                    + HistoryChartLayoutMetrics.yAxisLabelWidth / 2,
+                                y: yPosition(for: mark.value, in: trailingYAxis.domain, layout: layout)
+                            )
+                    }
                 }
 
                 ForEach(xAxisTicks, id: \.self) { date in
@@ -171,8 +231,8 @@ private struct LightweightHistoryLineChart: View {
 
     private func drawGrid(in context: inout GraphicsContext, layout: ChartLayout) {
         var horizontalGuides = Path()
-        for value in yAxisValues {
-            let y = yPosition(for: value, layout: layout)
+        for mark in leadingYAxis.marks {
+            let y = yPosition(for: mark.value, in: leadingYAxis.domain, layout: layout)
             horizontalGuides.move(to: CGPoint(x: layout.plotMinX, y: y))
             horizontalGuides.addLine(to: CGPoint(x: layout.plotMaxX, y: y))
         }
@@ -198,28 +258,30 @@ private struct LightweightHistoryLineChart: View {
     }
 
     private func drawSegments(in context: inout GraphicsContext, layout: ChartLayout) {
-        for segment in segments {
-            guard segment.points.count > 1 else { continue }
+        for series in series {
+            for segment in series.segments {
+                guard segment.points.count > 1 else { continue }
 
-            var line = Path()
-            for (index, point) in segment.points.enumerated() {
-                let mappedPoint = CGPoint(
-                    x: xPosition(for: point.timestamp, layout: layout),
-                    y: yPosition(for: point.value, layout: layout)
-                )
+                var line = Path()
+                for (index, point) in segment.points.enumerated() {
+                    let mappedPoint = CGPoint(
+                        x: xPosition(for: point.timestamp, layout: layout),
+                        y: yPosition(for: point.value, in: series.yDomain, layout: layout)
+                    )
 
-                if index == 0 {
-                    line.move(to: mappedPoint)
-                } else {
-                    line.addLine(to: mappedPoint)
+                    if index == 0 {
+                        line.move(to: mappedPoint)
+                    } else {
+                        line.addLine(to: mappedPoint)
+                    }
                 }
-            }
 
-            context.stroke(
-                line,
-                with: .color(lineColor),
-                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-            )
+                context.stroke(
+                    line,
+                    with: .color(series.lineColor),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                )
+            }
         }
     }
 
@@ -229,9 +291,12 @@ private struct LightweightHistoryLineChart: View {
         return layout.plotMinX + CGFloat(ratio) * layout.plotWidth
     }
 
-    private func yPosition(for value: Double, layout: ChartLayout) -> CGFloat {
-        let valueRange = max(yDomain.upperBound - yDomain.lowerBound, 1)
-        let ratio = min(max((value - yDomain.lowerBound) / valueRange, 0), 1)
+    private func yPosition(
+        for value: Double,
+        in domain: ClosedRange<Double>,
+        layout: ChartLayout
+    ) -> CGFloat {
+        let ratio = MugHistoryChartScale.normalizedFraction(for: value, in: domain)
         return layout.plotMaxY - CGFloat(ratio) * layout.plotHeight
     }
 
@@ -244,6 +309,7 @@ private struct LightweightHistoryLineChart: View {
     private struct ChartLayout {
         let size: CGSize
         let xAxisLabelWidth: CGFloat
+        let hasTrailingYAxis: Bool
 
         var plotMinX: CGFloat {
             HistoryChartLayoutMetrics.yAxisLabelWidth
@@ -251,7 +317,14 @@ private struct LightweightHistoryLineChart: View {
         }
 
         var plotMaxX: CGFloat {
-            max(plotMinX + 1, size.width - xAxisLabelWidth / 2)
+            let trailingInset = hasTrailingYAxis
+                ? max(
+                    xAxisLabelWidth / 2,
+                    HistoryChartLayoutMetrics.yAxisLabelWidth
+                        + HistoryChartLayoutMetrics.yAxisLabelGap
+                )
+                : xAxisLabelWidth / 2
+            return max(plotMinX + 1, size.width - trailingInset)
         }
 
         var plotWidth: CGFloat {

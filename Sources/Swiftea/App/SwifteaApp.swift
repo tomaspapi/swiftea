@@ -318,6 +318,10 @@ private struct MenuBarStatusPanel: View {
             } trailing: {
                 TemperatureSegmentedControl(
                     valueLabel: model.targetTemperatureLabel,
+                    valueWidthMode: TemperatureValueWidthMode(
+                        unit: model.temperatureUnitPreference,
+                        showsCelsiusDecimals: model.showsCelsiusDecimals
+                    ),
                     isEnabled: isTargetControlEnabled,
                     canDecrement: canDecreaseTargetTemperature,
                     canIncrement: canIncreaseTargetTemperature,

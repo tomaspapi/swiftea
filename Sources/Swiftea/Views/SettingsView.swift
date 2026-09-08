@@ -90,12 +90,31 @@ struct SettingsView: View {
                 unitsMenu
             }
 
+            LabeledContent {
+                Toggle("", isOn: celsiusDecimalsToggleBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            } label: {
+                Label("Enable decimals in Celsius", systemImage: "arrow.turn.down.right")
+                    .imageScale(.small)
+                    .foregroundStyle(
+                        model.temperatureUnitPreference == .celsius ? Color.primary : Color.secondary
+                    )
+            }
+            .disabled(model.temperatureUnitPreference != .celsius)
+
             LabeledContent("Time") {
                 timeMenu
             }
         }
 
         Section("Presence") {
+            LabeledContent("Launch Swiftea at login") {
+                Toggle("", isOn: launchAtLoginToggleBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+
             LabeledContent("Show Swiftea in") {
                 appLocationMenu
             }
@@ -115,12 +134,6 @@ struct SettingsView: View {
 
             LabeledContent("After closing window") {
                 windowCloseBehaviorMenu
-            }
-
-            LabeledContent("Launch Swiftea at login") {
-                Toggle("", isOn: launchAtLoginToggleBinding)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
             }
         }
     }
@@ -278,6 +291,17 @@ struct SettingsView: View {
             },
             set: { isEnabled in
                 model.setShowsMenuBarItemOnlyWhileMugActive(isEnabled)
+            }
+        )
+    }
+
+    private var celsiusDecimalsToggleBinding: Binding<Bool> {
+        Binding(
+            get: {
+                model.showsCelsiusDecimals
+            },
+            set: { isEnabled in
+                model.setShowsCelsiusDecimals(isEnabled)
             }
         )
     }

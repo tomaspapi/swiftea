@@ -189,24 +189,35 @@ Swiftea is developed by Tomás Papi. Privacy questions can be raised through the
     static let acknowledgementsMarkdown = #"""
 # Acknowledgements
 
-Swiftea is an independent app for controlling an Ember Mug over Bluetooth. It is not affiliated with, sponsored by, authorized by, or endorsed by Ember Technologies, Inc.
+Swiftea benefits from publicly available Bluetooth research and open-source software shared by the following people and projects.
 
-Ember, Ember Mug, Ember Mug 2, and related names and marks are trademarks or property of their respective owners.
+## Bluetooth research
 
-Swiftea’s Bluetooth implementation was informed by public reverse-engineering notes and prior open-source Ember mug projects, including:
+Swiftea’s Bluetooth implementation was informed by public reverse-engineering notes and other publicly available Ember mug projects:
 
-- [orlopau/ember-mug](https://github.com/orlopau/ember-mug) — Paul Orlob
-- [sopelj/python-ember-mug](https://github.com/sopelj/python-ember-mug) — Jesse Sopel
-- [sopelj/hass-ember-mug-component](https://github.com/sopelj/hass-ember-mug-component) — Jesse Sopel and contributors
-- [importRyan/Muggle](https://github.com/importRyan/Muggle) — Ryan Ferrell
+- [orlopau/ember-mug](https://github.com/orlopau/ember-mug) by Paul Orlob
+- [sopelj/python-ember-mug](https://github.com/sopelj/python-ember-mug) by Jesse Sopel
+- [sopelj/hass-ember-mug-component](https://github.com/sopelj/hass-ember-mug-component) by Jesse Sopel and contributors
+- [importRyan/Muggle](https://github.com/importRyan/Muggle) by Ryan Ferrell
 
-These projects were used as public reference material; they are not included inside Swiftea.
+These projects were used as reference material. Their code and assets are not included in Swiftea.
 
 ## Included open-source software
 
-- [sparkle-project/Sparkle](https://github.com/sparkle-project/Sparkle) — Sparkle Project contributors
+- [Sparkle](https://github.com/sparkle-project/Sparkle) by the Sparkle Project contributors
 
-Sparkle is included in Swiftea to support direct-download app updates. Its license notice is bundled with the app.
+Sparkle’s complete license and third-party notices are included with the app.
+
+## Website typefaces
+
+- [Inter](https://rsms.me/inter/) by The Inter Project Authors
+- [Commit Mono](https://commitmono.com/) by Eigil Nikolajsen
+
+The complete license notices for both typefaces are included with the website.
+
+## Trademark notice
+
+Swiftea is an independent project and is not affiliated with, sponsored by, authorized by, or endorsed by Ember Technologies, Inc. Ember and its related product names and marks belong to Ember Technologies, Inc.
 """#
 
     static let licenseText = #"""

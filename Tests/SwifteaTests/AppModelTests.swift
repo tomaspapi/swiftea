@@ -38,6 +38,9 @@ struct AppModelTests {
         #expect(!state.requiresRegularActivationPolicy)
 
         let reopenGeneration = state.requestPresentation()
+        #expect(state.lifecycle == .opening)
+        #expect(state.requiresRegularActivationPolicy)
+        #expect(state.activationPending)
         let reopenedRegistration = state.registerWindow()
 
         #expect(reopenedRegistration?.generation == reopenGeneration)
@@ -126,6 +129,66 @@ struct AppModelTests {
         model.setTargetTemperatureDraft(to: 61.9)
 
         #expect(model.targetTemperatureDraftCelsius == 62)
+    }
+
+    @Test func celsiusDecimalsUseHalfDegreeTargetsAndOmitTrailingZero() {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+        model.currentTemperatureCelsius = 54.26
+        model.isTemperatureControlOff = false
+
+        model.setShowsCelsiusDecimals(true)
+        model.setTargetTemperatureDraft(to: 55.4)
+
+        #expect(model.showsCelsiusDecimals)
+        #expect(model.targetTemperatureDraftCelsius == 55.5)
+        #expect(model.currentTemperatureLabel == "54.3°C")
+        #expect(model.targetTemperatureLabel == "55.5°C")
+
+        model.currentTemperatureCelsius = 55
+
+        #expect(model.currentTemperatureLabel == "55°C")
+
+        model.increaseTemperatureDraft()
+
+        #expect(model.targetTemperatureDraftCelsius == 56)
+        #expect(model.targetTemperatureLabel == "56°C")
+
+        model.decreaseTemperatureDraft()
+
+        #expect(model.targetTemperatureDraftCelsius == 55.5)
+        #expect(model.targetTemperatureLabel == "55.5°C")
+    }
+
+    @Test func temperatureControlWidthModeDependsOnConfiguredUnit() {
+        #expect(TemperatureValueWidthMode(unit: .celsius, showsCelsiusDecimals: false) == .celsius)
+        #expect(TemperatureValueWidthMode(unit: .celsius, showsCelsiusDecimals: true) == .celsiusWithDecimals)
+        #expect(TemperatureValueWidthMode(unit: .fahrenheit, showsCelsiusDecimals: true) == .fahrenheit)
+        #expect(!TemperatureValueWidthMode.celsius.usesExpandedWidth)
+        #expect(TemperatureValueWidthMode.celsiusWithDecimals.usesExpandedWidth)
+        #expect(TemperatureValueWidthMode.fahrenheit.usesExpandedWidth)
+    }
+
+    @Test func celsiusDecimalTargetsAreWrittenToTheMugInCelsius() {
+        let bluetoothCoordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            bluetoothCoordinator: bluetoothCoordinator
+        )
+        model.setShowsCelsiusDecimals(true)
+        model.apply(
+            snapshot: connectedSnapshot(
+                targetTemperatureCelsius: 55,
+                isEmpty: false,
+                currentTemperatureCelsius: 54
+            )
+        )
+        bluetoothCoordinator.targetWrites.removeAll()
+
+        model.setTargetTemperatureDraft(to: 55.5)
+        model.commitTargetTemperatureDraft()
+
+        #expect(bluetoothCoordinator.targetWrites.last == .init(celsius: 55.5, identifier: "MUG-1"))
     }
 
     @Test func choosingPresetUpdatesTargetTemperature() {
@@ -748,6 +811,58 @@ struct AppModelTests {
 
         #expect(model.appLocationPreference == .menuBar)
     }
+    @Test func celsiusDecimalsPreferenceDefaultsOffAndPersists() {
+        let preferences = InMemoryAppPreferencesStore()
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(!model.showsCelsiusDecimals)
+        model.setShowsCelsiusDecimals(true)
+
+        #expect(model.showsCelsiusDecimals)
+        #expect(preferences.bool(forKey: AppPreferencesKey.showsCelsiusDecimals) == true)
+    }
+
+    @Test func celsiusDecimalsPreferenceRestoresHalfDegreeTargets() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("celsius", forKey: AppPreferencesKey.temperatureUnitPreference)
+        preferences.set(true, forKey: AppPreferencesKey.showsCelsiusDecimals)
+        preferences.set(55.5, forKey: AppPreferencesKey.targetTemperatureDraftCelsius)
+
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(model.showsCelsiusDecimals)
+        #expect(model.targetTemperatureDraftCelsius == 55.5)
+        model.isTemperatureControlOff = false
+        #expect(model.targetTemperatureLabel == "55.5°C")
+    }
+
+    @Test func fahrenheitNormalizesCelsiusDecimalsPreferenceOff() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("fahrenheit", forKey: AppPreferencesKey.temperatureUnitPreference)
+        preferences.set(true, forKey: AppPreferencesKey.showsCelsiusDecimals)
+
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+
+        #expect(model.temperatureUnitPreference == .fahrenheit)
+        #expect(!model.showsCelsiusDecimals)
+        #expect(preferences.bool(forKey: AppPreferencesKey.showsCelsiusDecimals) == false)
+        model.setShowsCelsiusDecimals(true)
+        #expect(!model.showsCelsiusDecimals)
+    }
+
+    @Test func switchingToFahrenheitTurnsCelsiusDecimalsOff() {
+        let preferences = InMemoryAppPreferencesStore()
+        let model = AppModel(startBluetooth: false, preferences: preferences)
+        model.setShowsCelsiusDecimals(true)
+
+        model.temperatureUnitPreference = .fahrenheit
+
+        #expect(!model.showsCelsiusDecimals)
+        #expect(preferences.bool(forKey: AppPreferencesKey.showsCelsiusDecimals) == false)
+        model.temperatureUnitPreference = .celsius
+        #expect(!model.showsCelsiusDecimals)
+    }
+
     @Test func activeOnlyMenuBarPreferenceDefaultsOffAndPersists() {
         let preferences = InMemoryAppPreferencesStore()
         let model = AppModel(startBluetooth: false, preferences: preferences)
@@ -1269,6 +1384,23 @@ struct AppModelTests {
         #expect(model.currentTemperatureLabel == AppModel.format(celsius: 50, unit: .fahrenheit))
         #expect(model.targetTemperatureLabel == "135°F")
         #expect(preferences.string(forKey: AppPreferencesKey.temperatureUnitPreference) == "fahrenheit")
+    }
+
+    @Test func celsiusDecimalTargetNotificationUsesTheVisibleTarget() async {
+        let notifier = RecordingTargetTemperatureNotifier()
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), targetTemperatureNotifier: notifier)
+        model.setShowsCelsiusDecimals(true)
+        model.setTargetTemperatureDraft(to: 55.5)
+        model.setTargetTemperatureNotificationsEnabled(true)
+        await Task.yield()
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55.5, currentTemperatureCelsius: 55.4))
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55.5, currentTemperatureCelsius: 55.5))
+        await Task.yield()
+
+        #expect(notifier.deliveries == [
+            .init(mugName: "Ember Mug 2", targetLabel: "55.5°C")
+        ])
     }
 
     @Test func targetTemperatureNotificationFiresWhenMugReachesSelectedTarget() async {
@@ -2181,6 +2313,34 @@ struct AppModelTests {
         let points = model.historyChartSegments(metric: .temperature, now: now).flatMap(\.points)
 
         #expect(points.allSatisfy { $0.timestamp < heatingOffAt })
+    }
+
+    @Test func combinedHistoryChartUsesBatteryLeftAndTemperatureRight() {
+        #expect(MugHistoryChartSelection.both.metrics == [.battery, .temperature])
+        #expect(MugHistoryChartSelection.both.leadingMetric == .battery)
+        #expect(MugHistoryChartSelection.both.trailingMetric == .temperature)
+    }
+
+    @Test func batteryAndTemperatureChartScalesShareEquivalentVerticalPositions() {
+        let batteryMidpoint = MugHistoryChartScale.normalizedFraction(for: 50, in: 0 ... 100)
+        let temperatureMidpoint = MugHistoryChartScale.normalizedFraction(for: 55, in: 30 ... 80)
+
+        #expect(batteryMidpoint == 0.5)
+        #expect(temperatureMidpoint == 0.5)
+        #expect(MugHistoryChartScale.normalizedFraction(for: -10, in: 0 ... 100) == 0)
+        #expect(MugHistoryChartScale.normalizedFraction(for: 90, in: 30 ... 80) == 1)
+    }
+
+    @Test func temperatureChartUsesSixGuidesFromThirtyToEightyCelsius() {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+
+        #expect(model.historyChartYDomain(for: .temperature) == 30 ... 80)
+        #expect(model.historyChartYAxisValues(for: .temperature) == [30, 40, 50, 60, 70, 80])
+
+        model.temperatureUnitPreference = .fahrenheit
+
+        #expect(model.historyChartYDomain(for: .temperature) == 86 ... 176)
+        #expect(model.historyChartYAxisValues(for: .temperature) == [86, 104, 122, 140, 158, 176])
     }
 
     @Test func chartTimeframePreferencePersistsWhenChanged() {

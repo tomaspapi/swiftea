@@ -614,9 +614,23 @@ final class AppModel {
     }
     var temperatureUnitPreference: TemperatureUnitPreference = .celsius {
         didSet {
-            normalizeTargetTemperatureDraftForCurrentUnit()
             guard !isRestoringSavedPreferences else { return }
+            if temperatureUnitPreference != .celsius, showsCelsiusDecimals {
+                showsCelsiusDecimals = false
+            }
+            normalizeTargetTemperatureDraftForCurrentUnit()
             preferences.set(temperatureUnitPreference.rawValue, forKey: AppPreferencesKey.temperatureUnitPreference)
+        }
+    }
+    private(set) var showsCelsiusDecimals = false {
+        didSet {
+            guard oldValue != showsCelsiusDecimals else { return }
+            guard !isRestoringSavedPreferences else { return }
+            normalizeTargetTemperatureDraftForCurrentUnit()
+            preferences.set(
+                showsCelsiusDecimals,
+                forKey: AppPreferencesKey.showsCelsiusDecimals
+            )
         }
     }
     var timeFormatPreference: TimeFormatPreference = .twentyFourHour {
@@ -1109,10 +1123,10 @@ final class AppModel {
         case .temperature:
             switch temperatureUnitPreference {
             case .celsius:
-                30 ... 70
+                30 ... 80
             case .fahrenheit:
                 Self.temperatureDisplayValue(celsius: 30, unit: .fahrenheit)
-                    ... Self.temperatureDisplayValue(celsius: 70, unit: .fahrenheit)
+                    ... Self.temperatureDisplayValue(celsius: 80, unit: .fahrenheit)
             }
         }
     }
@@ -1122,7 +1136,7 @@ final class AppModel {
         case .battery:
             stride(from: 0, through: 100, by: 20).map { Double($0) }
         case .temperature:
-            stride(from: 30, through: 70, by: 10).map {
+            stride(from: 30, through: 80, by: 10).map {
                 Self.temperatureDisplayValue(celsius: Double($0), unit: temperatureUnitPreference)
             }
         }
@@ -1134,7 +1148,11 @@ final class AppModel {
         }
 
         guard let currentTemperatureCelsius else { return "—" }
-        return Self.format(celsius: currentTemperatureCelsius, unit: temperatureUnitPreference)
+        return Self.format(
+            celsius: currentTemperatureCelsius,
+            unit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
     }
 
     var menuBarStatusTemperatureLabel: String? {
@@ -1148,7 +1166,11 @@ final class AppModel {
             return nil
         }
 
-        return Self.format(celsius: currentTemperatureCelsius, unit: temperatureUnitPreference)
+        return Self.format(
+            celsius: currentTemperatureCelsius,
+            unit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
     }
 
     var hasActiveMug: Bool {
@@ -1207,7 +1229,11 @@ final class AppModel {
 
     var targetTemperatureLabel: String {
         guard !isTemperatureControlOff else { return "Off" }
-        return Self.formatTargetTemperatureValue(targetTemperatureDisplayValue, unit: temperatureUnitPreference)
+        return Self.formatTargetTemperatureValue(
+            targetTemperatureDisplayValue,
+            unit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
     }
 
     var batteryLabel: String {
@@ -1629,6 +1655,7 @@ final class AppModel {
     }
 
     func connectDiscoveryMug(identifier: String) {
+
         guard let mug = discoveredMugs.first(where: { $0.identifier == identifier }) else { return }
         guard !isDiscoveryExcludedMug(mug) else { return }
 
@@ -1885,6 +1912,18 @@ final class AppModel {
         soundsEnabled = isEnabled
     }
 
+    func setShowsCelsiusDecimals(_ isEnabled: Bool) {
+        let normalizedValue = temperatureUnitPreference == .celsius && isEnabled
+        guard normalizedValue != showsCelsiusDecimals else {
+            if isEnabled != normalizedValue {
+                preferences.set(normalizedValue, forKey: AppPreferencesKey.showsCelsiusDecimals)
+            }
+            return
+        }
+
+        showsCelsiusDecimals = normalizedValue
+    }
+
     func setShowsMenuBarItemOnlyWhileMugActive(_ isEnabled: Bool) {
         let normalizedValue = appLocationPreference.includesMenuBar && isEnabled
         guard normalizedValue != showsMenuBarItemOnlyWhileMugActive else {
@@ -1963,12 +2002,18 @@ final class AppModel {
     }
 
     func increaseTemperatureDraft() {
-        setTargetTemperatureDraft(toDisplayValue: targetTemperatureDisplayValue + 1, reenableIfNeeded: true)
+        setTargetTemperatureDraft(
+            toDisplayValue: targetTemperatureDisplayValue + targetTemperatureDisplayStep,
+            reenableIfNeeded: true
+        )
         queueTargetTemperatureCommit()
     }
 
     func decreaseTemperatureDraft() {
-        setTargetTemperatureDraft(toDisplayValue: targetTemperatureDisplayValue - 1, reenableIfNeeded: true)
+        setTargetTemperatureDraft(
+            toDisplayValue: targetTemperatureDisplayValue - targetTemperatureDisplayStep,
+            reenableIfNeeded: true
+        )
         queueTargetTemperatureCommit()
     }
 
@@ -1978,7 +2023,11 @@ final class AppModel {
 
     func setTargetTemperatureDraft(toCelsius value: Double, reenableIfNeeded: Bool = false) {
         setNormalizedTargetTemperatureDraft(
-            Self.normalizedTargetTemperatureCelsius(value, displayUnit: temperatureUnitPreference),
+            Self.normalizedTargetTemperatureCelsius(
+                value,
+                displayUnit: temperatureUnitPreference,
+                showsCelsiusDecimals: showsCelsiusDecimals
+            ),
             reenableIfNeeded: reenableIfNeeded
         )
     }
@@ -2237,10 +2286,22 @@ final class AppModel {
         )
     }
 
-    static func format(celsius: Double, unit: TemperatureUnitPreference = .celsius) -> String {
-        Measurement(value: celsius, unit: UnitTemperature.celsius)
+    static func format(
+        celsius: Double,
+        unit: TemperatureUnitPreference = .celsius,
+        showsCelsiusDecimals: Bool = false
+    ) -> String {
+        let fractionLength = unit == .celsius && showsCelsiusDecimals ? 0 ... 1 : 0 ... 0
+
+        return Measurement(value: celsius, unit: UnitTemperature.celsius)
             .converted(to: unit.measurementUnit)
-            .formatted(.measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0))))
+            .formatted(
+                .measurement(
+                    width: .abbreviated,
+                    usage: .asProvided,
+                    numberFormatStyle: .number.precision(.fractionLength(fractionLength))
+                )
+            )
     }
 
     static func formatTime(
@@ -2281,7 +2342,8 @@ final class AppModel {
         let currentTemperature = 55.0
         let targetTemperature = Self.normalizedTargetTemperatureCelsius(
             55,
-            displayUnit: model.temperatureUnitPreference
+            displayUnit: model.temperatureUnitPreference,
+            showsCelsiusDecimals: model.showsCelsiusDecimals
         )
         let finish = EmberMugFinish.sandstone
         let size = EmberMugSize.ounce14
@@ -3022,6 +3084,14 @@ final class AppModel {
             self.temperatureUnitPreference = temperatureUnitPreference
         }
 
+        let savedShowsCelsiusDecimals = preferences.bool(
+            forKey: AppPreferencesKey.showsCelsiusDecimals
+        ) ?? false
+        showsCelsiusDecimals = temperatureUnitPreference == .celsius && savedShowsCelsiusDecimals
+        if savedShowsCelsiusDecimals, !showsCelsiusDecimals {
+            preferences.set(false, forKey: AppPreferencesKey.showsCelsiusDecimals)
+        }
+
         if
             let savedTimeFormatPreference = preferences.string(forKey: AppPreferencesKey.timeFormatPreference),
             let timeFormatPreference = TimeFormatPreference(rawValue: savedTimeFormatPreference)
@@ -3156,6 +3226,7 @@ final class AppModel {
 
         let boolKeys = [
             AppPreferencesKey.keepsRunningWhenWindowClosed,
+            AppPreferencesKey.showsCelsiusDecimals,
             AppPreferencesKey.showsMenuBarItemOnlyWhileMugActive,
             AppPreferencesKey.targetTemperatureNotificationsEnabled,
             AppPreferencesKey.batteryFullyChargedNotificationsEnabled,
@@ -3170,16 +3241,28 @@ final class AppModel {
         Self.targetTemperatureDisplayRange(for: temperatureUnitPreference)
     }
 
+    private var targetTemperatureDisplayStep: Double {
+        Self.targetTemperatureDisplayStep(
+            unit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
+    }
+
     private var targetTemperatureDisplayValue: Double {
         Self.targetTemperatureDisplayValue(
             forCelsius: targetTemperatureDraftCelsius,
-            unit: temperatureUnitPreference
+            unit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
         )
     }
 
     private func setTargetTemperatureDraft(toDisplayValue value: Double, reenableIfNeeded: Bool = false) {
         setNormalizedTargetTemperatureDraft(
-            Self.normalizedTargetTemperatureCelsius(value, sourceUnit: temperatureUnitPreference),
+            Self.normalizedTargetTemperatureCelsius(
+                value,
+                sourceUnit: temperatureUnitPreference,
+                showsCelsiusDecimals: showsCelsiusDecimals
+            ),
             reenableIfNeeded: reenableIfNeeded
         )
     }
@@ -3210,7 +3293,8 @@ final class AppModel {
     private func normalizeTargetTemperatureDraftForCurrentUnit() {
         let normalizedTargetTemperature = Self.normalizedTargetTemperatureCelsius(
             targetTemperatureDraftCelsius,
-            displayUnit: temperatureUnitPreference
+            displayUnit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
         )
 
         if abs(targetTemperatureDraftCelsius - normalizedTargetTemperature) > 0.0001 {
@@ -3236,26 +3320,43 @@ final class AppModel {
 
     private static func targetTemperatureDisplayValue(
         forCelsius celsius: Double,
-        unit: TemperatureUnitPreference
+        unit: TemperatureUnitPreference,
+        showsCelsiusDecimals: Bool
     ) -> Double {
         let clampedCelsius = clampedTargetTemperatureCelsius(celsius)
+        let step = targetTemperatureDisplayStep(
+            unit: unit,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
 
         let displayValue: Double = switch unit {
         case .celsius:
-            clampedCelsius.rounded(.toNearestOrAwayFromZero)
+            rounded(clampedCelsius, toIncrement: step)
         case .fahrenheit:
-            fahrenheit(fromCelsius: clampedCelsius).rounded(.toNearestOrAwayFromZero)
+            rounded(fahrenheit(fromCelsius: clampedCelsius), toIncrement: step)
         }
 
         return clampedTargetTemperatureDisplayValue(displayValue, unit: unit)
     }
 
+    private static func targetTemperatureDisplayStep(
+        unit: TemperatureUnitPreference,
+        showsCelsiusDecimals: Bool
+    ) -> Double {
+        unit == .celsius && showsCelsiusDecimals ? 0.5 : 1
+    }
+
     private static func normalizedTargetTemperatureCelsius(
         _ value: Double,
-        sourceUnit: TemperatureUnitPreference
+        sourceUnit: TemperatureUnitPreference,
+        showsCelsiusDecimals: Bool
     ) -> Double {
+        let step = targetTemperatureDisplayStep(
+            unit: sourceUnit,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
         let displayValue = clampedTargetTemperatureDisplayValue(
-            value.rounded(.toNearestOrAwayFromZero),
+            rounded(value, toIncrement: step),
             unit: sourceUnit
         )
 
@@ -3269,10 +3370,19 @@ final class AppModel {
 
     private static func normalizedTargetTemperatureCelsius(
         _ celsius: Double,
-        displayUnit: TemperatureUnitPreference
+        displayUnit: TemperatureUnitPreference,
+        showsCelsiusDecimals: Bool
     ) -> Double {
-        let displayValue = targetTemperatureDisplayValue(forCelsius: celsius, unit: displayUnit)
-        return normalizedTargetTemperatureCelsius(displayValue, sourceUnit: displayUnit)
+        let displayValue = targetTemperatureDisplayValue(
+            forCelsius: celsius,
+            unit: displayUnit,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
+        return normalizedTargetTemperatureCelsius(
+            displayValue,
+            sourceUnit: displayUnit,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
     }
 
     private static func clampedTargetTemperatureCelsius(_ value: Double) -> Double {
@@ -3285,6 +3395,13 @@ final class AppModel {
     ) -> Double {
         let range = targetTemperatureDisplayRange(for: unit)
         return min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    private static func rounded(
+        _ value: Double,
+        toIncrement increment: Double
+    ) -> Double {
+        (value / increment).rounded(.toNearestOrAwayFromZero) * increment
     }
 
     private static func celsius(fromFahrenheit fahrenheit: Double) -> Double {
@@ -3309,8 +3426,14 @@ final class AppModel {
 
     private static func formatTargetTemperatureValue(
         _ value: Double,
-        unit: TemperatureUnitPreference
+        unit: TemperatureUnitPreference,
+        showsCelsiusDecimals: Bool
     ) -> String {
+        if unit == .celsius, showsCelsiusDecimals {
+            let formattedValue = value.formatted(.number.precision(.fractionLength(0 ... 1)))
+            return "\(formattedValue)°C"
+        }
+
         let roundedValue = Int(value.rounded(.toNearestOrAwayFromZero))
 
         switch unit {
@@ -3627,7 +3750,8 @@ final class AppModel {
     private func storeTargetTemperatureDraftFromReadBack(_ targetTemperatureCelsius: Double) {
         targetTemperatureDraftCelsius = Self.normalizedTargetTemperatureCelsius(
             targetTemperatureCelsius,
-            displayUnit: temperatureUnitPreference
+            displayUnit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
         )
         if let transientMugIdentifier {
             targetTemperatureDraftsByMug[transientMugIdentifier] = targetTemperatureDraftCelsius
@@ -4068,13 +4192,19 @@ final class AppModel {
         let targetCelsius = targetTemperatureDraftCelsius
         let targetDisplayValue = Self.targetTemperatureDisplayValue(
             forCelsius: targetCelsius,
-            unit: temperatureUnitPreference
+            unit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
         )
-        let currentDisplayValue = Self.temperatureDisplayValue(
-            celsius: currentTemperatureCelsius,
-            unit: temperatureUnitPreference
+        let currentDisplayStep = temperatureUnitPreference == .celsius && showsCelsiusDecimals
+            ? 0.1
+            : 1
+        let currentDisplayValue = Self.rounded(
+            Self.temperatureDisplayValue(
+                celsius: currentTemperatureCelsius,
+                unit: temperatureUnitPreference
+            ),
+            toIncrement: currentDisplayStep
         )
-        .rounded(.toNearestOrAwayFromZero)
 
         var state = targetTemperatureNotificationStateByMug[mugIdentifier] ?? TargetTemperatureNotificationState()
         if let armedTargetCelsius = state.armedTargetCelsius, abs(armedTargetCelsius - targetCelsius) > 0.05 {
@@ -4122,7 +4252,11 @@ final class AppModel {
         targetTemperatureNotificationStateByMug[mugIdentifier] = state
 
         let mugName = deviceName
-        let targetLabel = Self.formatTargetTemperatureValue(targetDisplayValue, unit: temperatureUnitPreference)
+        let targetLabel = Self.formatTargetTemperatureValue(
+            targetDisplayValue,
+            unit: temperatureUnitPreference,
+            showsCelsiusDecimals: showsCelsiusDecimals
+        )
         Task { @MainActor [targetTemperatureNotifier] in
             await targetTemperatureNotifier.deliverTargetReachedNotification(
                 mugName: mugName,

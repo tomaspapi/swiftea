@@ -73,6 +73,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = requestMainWindowPresentation()
     }
 
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows: Bool
+    ) -> Bool {
+        AppLog.windowing.notice(
+            "Application reopen requested hasVisibleWindows=\(hasVisibleWindows, privacy: .public)"
+        )
+
+        // Launch Services can reopen an already-running accessory app after its
+        // main window closes. Prime the existing presentation state before
+        // AppKit asks SwiftUI to recreate that window.
+        let didScheduleExistingWindow = requestMainWindowPresentation()
+        return !didScheduleExistingWindow
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(
             self,

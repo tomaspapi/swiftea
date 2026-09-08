@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.1 — 2026-09-08
+
+- Added optional half-degree Celsius controls and readings with up to one decimal place.
+- Added a combined chart for viewing battery and temperature history together.
+- Fixed a problem where reopening Swiftea from Spotlight could show its window without restoring its Dock icon or app menus.
+
 ## 0.4.0 — 2026-09-02
 
 - Added an option to show Swiftea in the menu bar only while a mug is active.

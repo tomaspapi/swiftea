@@ -1,9 +1,32 @@
 import SwiftUI
 
+enum TemperatureValueWidthMode: Equatable {
+    case celsius
+    case celsiusWithDecimals
+    case fahrenheit
+
+    init(
+        unit: AppModel.TemperatureUnitPreference,
+        showsCelsiusDecimals: Bool
+    ) {
+        switch unit {
+        case .celsius:
+            self = showsCelsiusDecimals ? .celsiusWithDecimals : .celsius
+        case .fahrenheit:
+            self = .fahrenheit
+        }
+    }
+
+    var usesExpandedWidth: Bool {
+        self != .celsius
+    }
+}
+
 struct TemperatureSegmentedControl: View {
     @Environment(\.controlSize) private var controlSize
 
     let valueLabel: String
+    let valueWidthMode: TemperatureValueWidthMode
     let isEnabled: Bool
     let canDecrement: Bool
     let canIncrement: Bool
@@ -11,7 +34,7 @@ struct TemperatureSegmentedControl: View {
     let onIncrement: () -> Void
 
     private var metrics: Metrics {
-        Metrics(controlSize: controlSize, valueLabel: valueLabel)
+        Metrics(controlSize: controlSize, valueWidthMode: valueWidthMode)
     }
 
     var body: some View {
@@ -80,14 +103,14 @@ private struct Metrics {
     let minusSymbolOffsetX: CGFloat
     let cornerRadius: CGFloat
 
-    init(controlSize: ControlSize, valueLabel: String) {
-        let usesFahrenheitWidth = valueLabel.contains("°F")
+    init(controlSize: ControlSize, valueWidthMode: TemperatureValueWidthMode) {
+        let usesExpandedValueWidth = valueWidthMode.usesExpandedWidth
 
         switch controlSize {
         case .mini:
             height = 16
             sideWidth = 24
-            valueWidth = usesFahrenheitWidth ? 42 : 32
+            valueWidth = usesExpandedValueWidth ? 42 : 32
             buttonFontSize = 8
             valueFontSize = 10
             minusSymbolOffsetX = 0.75
@@ -95,7 +118,7 @@ private struct Metrics {
         case .small:
             height = 21.5
             sideWidth = 26
-            valueWidth = usesFahrenheitWidth ? 48 : 38
+            valueWidth = usesExpandedValueWidth ? 48 : 38
             buttonFontSize = 8
             valueFontSize = 12
             minusSymbolOffsetX = 0.75
@@ -103,7 +126,7 @@ private struct Metrics {
         default:
             height = 34
             sideWidth = 36
-            valueWidth = usesFahrenheitWidth ? 68 : 52
+            valueWidth = usesExpandedValueWidth ? 68 : 52
             buttonFontSize = 8
             valueFontSize = 16
             minusSymbolOffsetX = 0.75
@@ -116,6 +139,7 @@ private struct Metrics {
     VStack(spacing: 16) {
         TemperatureSegmentedControl(
             valueLabel: "55°C",
+            valueWidthMode: .celsiusWithDecimals,
             isEnabled: true,
             canDecrement: true,
             canIncrement: true,
@@ -126,6 +150,7 @@ private struct Metrics {
 
         TemperatureSegmentedControl(
             valueLabel: "143°F",
+            valueWidthMode: .fahrenheit,
             isEnabled: true,
             canDecrement: true,
             canIncrement: false,
@@ -136,6 +161,7 @@ private struct Metrics {
 
         TemperatureSegmentedControl(
             valueLabel: "62°C",
+            valueWidthMode: .celsius,
             isEnabled: true,
             canDecrement: true,
             canIncrement: false,
@@ -146,6 +172,7 @@ private struct Metrics {
 
         TemperatureSegmentedControl(
             valueLabel: "143°F",
+            valueWidthMode: .fahrenheit,
             isEnabled: true,
             canDecrement: true,
             canIncrement: false,
@@ -156,6 +183,7 @@ private struct Metrics {
 
         TemperatureSegmentedControl(
             valueLabel: "Off",
+            valueWidthMode: .celsius,
             isEnabled: false,
             canDecrement: false,
             canIncrement: false,
