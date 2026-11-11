@@ -37,3 +37,38 @@ final class SilentHeatingToggleSoundPlayer: HeatingToggleSoundPlaying {
 
     func playHeatingToggleSound(isEnabled: Bool) {}
 }
+
+@MainActor
+protocol TargetTemperatureSoundPlaying: AnyObject {
+    func playTargetTemperatureReachedSound()
+}
+
+@MainActor
+final class NativeTargetTemperatureSoundPlayer: TargetTemperatureSoundPlaying {
+    static let shared = NativeTargetTemperatureSoundPlayer()
+    static let soundName = NSSound.Name("Funk")
+
+    private let sound = NSSound(named: soundName)
+
+    private init() {}
+
+    func playTargetTemperatureReachedSound() {
+        guard let sound else {
+            NSSound.beep()
+            return
+        }
+
+        sound.stop()
+        sound.currentTime = 0
+        sound.play()
+    }
+}
+
+@MainActor
+final class SilentTargetTemperatureSoundPlayer: TargetTemperatureSoundPlaying {
+    static let shared = SilentTargetTemperatureSoundPlayer()
+
+    private init() {}
+
+    func playTargetTemperatureReachedSound() {}
+}

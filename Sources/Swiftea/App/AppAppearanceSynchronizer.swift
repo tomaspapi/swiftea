@@ -4,28 +4,38 @@ import SwiftUI
 struct AppAppearanceSynchronizer: NSViewRepresentable {
     let themePreference: AppModel.ThemePreference
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        syncAppearance(from: view)
+    func makeNSView(context: Context) -> AppearanceSynchronizingView {
+        let view = AppearanceSynchronizingView()
+        view.themePreference = themePreference
+        view.syncAppearance()
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        syncAppearance(from: nsView)
+    func updateNSView(_ nsView: AppearanceSynchronizingView, context: Context) {
+        nsView.themePreference = themePreference
+        nsView.syncAppearance()
+    }
+}
+
+@MainActor
+final class AppearanceSynchronizingView: NSView {
+    var themePreference: AppModel.ThemePreference = .system
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncAppearance()
     }
 
-    private func syncAppearance(from view: NSView) {
-        DispatchQueue.main.async {
-            let appearance = themePreference.nsAppearance
+    func syncAppearance() {
+        let appearance = themePreference.nsAppearance
 
-            NSApp.appearance = appearance
+        NSApp.appearance = appearance
 
-            for window in NSApp.windows {
-                window.appearance = appearance
-            }
-
-            view.window?.appearance = appearance
+        for window in NSApp.windows {
+            window.appearance = appearance
         }
+
+        window?.appearance = appearance
     }
 }
 

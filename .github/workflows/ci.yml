@@ -13,7 +13,7 @@ permissions:
 jobs:
   test:
     name: Swift tests
-    runs-on: macos-26
+    runs-on: xcode-27
 
     steps:
       - name: Check out repository
@@ -21,17 +21,7 @@ jobs:
 
       - name: Select Xcode
         run: |
-          for xcode in \
-            /Applications/Xcode_26.4.app \
-            /Applications/Xcode_26.5.app \
-            /Applications/Xcode_26.5_beta.app \
-            /Applications/Xcode.app
-          do
-            if [ -d "$xcode" ]; then
-              sudo xcode-select -s "$xcode/Contents/Developer"
-              break
-            fi
-          done
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
       - name: Show toolchain
         run: |

@@ -17,14 +17,13 @@ struct SaveMugNameSheet: View {
                 Text("Saved name")
                     .font(.headline)
 
-                TextField("Kitchen mug", text: $model.mugNameDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isNameFieldFocused)
-                    .onSubmit {
-                        if model.canCommitMugNameDraft {
-                            model.saveCurrentMugName()
-                        }
-                    }
+                if #available(macOS 27.0, *) {
+                    nameField
+                        .textFieldStyle(.bordered)
+                } else {
+                    nameField
+                        .textFieldStyle(.roundedBorder)
+                }
             }
 
             if model.shouldShowHardwareDeviceName {
@@ -54,6 +53,16 @@ struct SaveMugNameSheet: View {
         .onAppear {
             isNameFieldFocused = true
         }
+    }
+
+    private var nameField: some View {
+        TextField("Kitchen mug", text: $model.mugNameDraft)
+            .focused($isNameFieldFocused)
+            .onSubmit {
+                if model.canCommitMugNameDraft {
+                    model.saveCurrentMugName()
+                }
+            }
     }
 }
 

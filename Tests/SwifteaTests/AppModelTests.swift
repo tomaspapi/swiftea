@@ -288,6 +288,11 @@ struct AppModelTests {
         #expect(!model.isTemperatureControlOff)
     }
 
+    @Test func targetTemperatureSoundUsesFunk() {
+        #expect(NativeTargetTemperatureSoundPlayer.soundName == "Funk")
+        #expect(NSSound(named: NativeTargetTemperatureSoundPlayer.soundName) != nil)
+    }
+
     @Test func heatingToggleSoundFollowsHumanToggleChangesImmediately() {
         let soundPlayer = SpyHeatingToggleSoundPlayer()
         let model = AppModel(
@@ -514,6 +519,87 @@ struct AppModelTests {
         #expect(events.last?.kind == .batteryRecalibrated)
         #expect(events.last?.batteryPercent == 99)
         #expect(batterySegments.count == 2)
+    }
+
+    @Test(arguments: [true, false])
+    func batteryConfirmationWindowAcceptsAtThirtySeconds(isCharging: Bool) {
+        var now = Date(timeIntervalSince1970: 1_800_000_000)
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), nowProvider: { now })
+        let baseline = isCharging ? 0.66 : 1.0
+        let candidate = isCharging ? 1.0 : 0.66
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: baseline,
+                                               isCharging: isCharging, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(20)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: candidate,
+                                               isCharging: isCharging, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(15)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: candidate,
+                                               isCharging: isCharging, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(14)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: candidate,
+                                               isCharging: isCharging, lastBatteryReadingAt: now))
+        #expect(model.batteryLevel == baseline)
+
+        now = now.addingTimeInterval(1)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: candidate,
+                                               isCharging: isCharging, lastBatteryReadingAt: now))
+
+        #expect(model.batteryLevel == candidate)
+        #expect(historyEvents(for: "MUG-1", in: model).last?.kind == .batteryRecalibrated)
+        #expect(model.historyChartSegments(metric: .battery, now: now).count == 2)
+    }
+
+    @Test func batteryConfirmationWindowStillRequiresThreeFreshReads() {
+        var now = Date(timeIntervalSince1970: 1_800_000_000)
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), nowProvider: { now })
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 0.66,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(20)
+        let firstReadAt = now
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 1,
+                                               isCharging: true, lastBatteryReadingAt: firstReadAt))
+        for _ in 0..<4 {
+            now = now.addingTimeInterval(10)
+            model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 1,
+                                                   isCharging: true, lastBatteryReadingAt: firstReadAt))
+        }
+        #expect(model.batteryLevel == 0.66)
+
+        now = now.addingTimeInterval(1)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 1,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        #expect(model.batteryLevel == 0.66)
+
+        now = now.addingTimeInterval(1)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 1,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        #expect(model.batteryLevel == 1)
+    }
+
+    @Test func batteryConfirmationWindowRestartsForAnUnstableCandidate() {
+        var now = Date(timeIntervalSince1970: 1_800_000_000)
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), nowProvider: { now })
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 0.66,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(20)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 0.9,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(20)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 0.97,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(20)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 0.97,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        now = now.addingTimeInterval(9)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 0.97,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        #expect(model.batteryLevel == 0.66)
+
+        now = now.addingTimeInterval(1)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, batteryLevel: 0.97,
+                                               isCharging: true, lastBatteryReadingAt: now))
+        #expect(model.batteryLevel == 0.97)
     }
 
     @Test func plausibleBatteryIncreaseIsAcceptedImmediately() {
@@ -1213,6 +1299,17 @@ struct AppModelTests {
         #expect(bluetoothCoordinator.recoverAutoConnectMugsCallCount == 1)
     }
 
+    @Test func onboardingCanBeForcedForDevelopmentPreview() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("dark", forKey: AppPreferencesKey.themePreference)
+
+        let model = AppModel(startBluetooth: false, preferences: preferences, forceOnboardingPresentation: true)
+
+        #expect(model.shouldPresentOnboarding)
+        #expect(!model.shouldStartOnboardingAtLegalAgreement)
+        #expect(model.consumeOnboardingPresentation())
+    }
+
     @Test func updateChangelogDoesNotPresentOnFirstInstallAndRecordsCurrentVersion() {
         let preferences = InMemoryAppPreferencesStore()
 
@@ -1233,6 +1330,45 @@ struct AppModelTests {
         #expect(!model.shouldPresentUpdateChangelog)
         #expect(preferences.string(forKey: AppPreferencesKey.lastPresentedChangelogVersion) == "1.1.0 (11)")
         #expect(!model.consumeUpdateChangelogPresentation())
+    }
+
+    @Test func betaDoesNotConsumeTheFinalReleaseChangelog() {
+        let preferences = InMemoryAppPreferencesStore()
+        preferences.set("0.4.1 (10.1)", forKey: AppPreferencesKey.lastPresentedChangelogVersion)
+        let changelog = """
+        # Changelog
+
+        ## 0.4.2
+
+        - Improved background monitoring.
+        """
+        let beta = AppModel(
+            startBluetooth: false, preferences: preferences,
+            appVersionIdentifier: "0.4.2 beta 1 (10.2)", changelogMarkdown: changelog
+        )
+        #expect(!beta.shouldPresentUpdateChangelog)
+        #expect(!beta.consumeUpdateChangelogPresentation())
+        #expect(preferences.string(forKey: AppPreferencesKey.lastPresentedChangelogVersion) == "0.4.1 (10.1)")
+
+        let stable = AppModel(
+            startBluetooth: false, preferences: preferences,
+            appVersionIdentifier: "0.4.2 (11)", changelogMarkdown: changelog
+        )
+        #expect(stable.shouldPresentUpdateChangelog)
+        #expect(stable.updateChangelogReleases.map(\.version) == ["0.4.2"])
+        #expect(stable.consumeUpdateChangelogPresentation())
+        #expect(preferences.string(forKey: AppPreferencesKey.lastPresentedChangelogVersion) == "0.4.2 (11)")
+    }
+
+    @Test func firstInstallBetaDoesNotRecordAnUnreleasedVersionAsPublished() {
+        let preferences = InMemoryAppPreferencesStore()
+        let beta = AppModel(
+            startBluetooth: false, preferences: preferences,
+            appVersionIdentifier: "0.4.2 beta 1 (10.2)"
+        )
+        #expect(!beta.shouldPresentUpdateChangelog)
+        #expect(!beta.consumeUpdateChangelogPresentation())
+        #expect(preferences.string(forKey: AppPreferencesKey.lastPresentedChangelogVersion) == nil)
     }
 
     @Test func updateChangelogCollectsEveryMissedPublishedVersion() {
@@ -1415,6 +1551,49 @@ struct AppModelTests {
         model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: 55.2))
         await Task.yield()
 
+        #expect(notifier.deliveries == [
+            .init(mugName: "Ember Mug 2", targetLabel: "55°C")
+        ])
+    }
+
+    @Test func targetTemperatureSoundPlaysWithoutBannerNotificationsWhenEnabled() {
+        let soundPlayer = SpyTargetTemperatureSoundPlayer()
+        let notifier = RecordingTargetTemperatureNotifier()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            targetTemperatureSoundPlayer: soundPlayer,
+            targetTemperatureNotifier: notifier
+        )
+        model.setTargetTemperatureDraft(to: 55)
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: 54))
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: 55))
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: 55.2))
+
+        #expect(soundPlayer.playCount == 1)
+        #expect(notifier.deliveries.isEmpty)
+    }
+
+    @Test func disablingSoundsSuppressesTargetSoundWithoutSuppressingNotification() async {
+        let soundPlayer = SpyTargetTemperatureSoundPlayer()
+        let notifier = RecordingTargetTemperatureNotifier()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            targetTemperatureSoundPlayer: soundPlayer,
+            targetTemperatureNotifier: notifier
+        )
+        model.setSoundsEnabled(false)
+        model.setTargetTemperatureDraft(to: 55)
+        model.setTargetTemperatureNotificationsEnabled(true)
+        await Task.yield()
+
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: 54))
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: 55))
+        await Task.yield()
+
+        #expect(soundPlayer.playCount == 0)
         #expect(notifier.deliveries == [
             .init(mugName: "Ember Mug 2", targetLabel: "55°C")
         ])
@@ -2063,6 +2242,7 @@ struct AppModelTests {
         #expect(model.discoveryWindowMugs.first?.metadata == "Sandstone • 14 oz")
     }
 
+
     @Test func discoveryWindowExcludesSavedMugsEvenWhenAutoConnectIsOff() {
         let preferences = InMemoryAppPreferencesStore()
         preferences.set(
@@ -2162,6 +2342,12 @@ struct AppModelTests {
             )
         )
         model.apply(
+            snapshot: discoverySnapshot(discoveredMugs: [
+                .init(identifier: "MUG-DUPLICATE", name: "Ember Mug 2", rssi: -61, finish: nil, size: nil)
+            ])
+        )
+        model.connectDiscoveryMug(identifier: "MUG-DUPLICATE")
+        model.apply(
             snapshot: connectedSnapshot(
                 targetTemperatureCelsius: 58,
                 activePeripheralIdentifier: "MUG-DUPLICATE",
@@ -2173,6 +2359,30 @@ struct AppModelTests {
         #expect(model.connectedSidebarMugs.map(\.identifier) == ["MUG-LIVE"])
         #expect(!model.autoConnectMugIdentifiers.contains("MUG-DUPLICATE"))
         #expect(!model.allSidebarMugIdentifiers.contains("MUG-DUPLICATE"))
+    }
+
+    @Test(arguments: [false, true])
+    func restoredSavedMugsSurviveSerialCollisions(reverseOrder: Bool) {
+        let preferences = InMemoryAppPreferencesStore()
+        let saved = #"{"identifiers":["MUG-1","MUG-2"]}"#
+        preferences.set(saved, forKey: AppPreferencesKey.savedMugIdentifiers)
+        preferences.set(saved, forKey: AppPreferencesKey.autoConnectMugIdentifiers)
+        preferences.set("MUG-1", forKey: AppPreferencesKey.selectedMugIdentifier)
+        let coordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(startBluetooth: false, preferences: preferences, bluetoothCoordinator: coordinator)
+
+        for identifier in reverseOrder ? ["MUG-2", "MUG-1"] : ["MUG-1", "MUG-2"] {
+            model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: identifier, serialNumber: "SHARED-SERIAL"))
+        }
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-2", serialNumber: "SHARED-SERIAL"))
+
+        #expect(model.savedMugIdentifiers == ["MUG-1", "MUG-2"])
+        #expect(model.autoConnectMugIdentifiers == ["MUG-1", "MUG-2"])
+        #expect(model.selectedMugIdentifier == (reverseOrder ? "MUG-2" : "MUG-1"))
+        #expect(coordinator.forgottenMugIdentifiers.isEmpty)
+        let restored = AppModel(startBluetooth: false, preferences: preferences)
+        #expect(restored.savedMugIdentifiers == ["MUG-1", "MUG-2"])
+        #expect(restored.autoConnectMugIdentifiers == ["MUG-1", "MUG-2"])
     }
 
     @Test func pendingDiscoveryDuplicateDoesNotReplaceExistingMugWhenExistingSerialArrivesLater() {
@@ -2773,6 +2983,394 @@ struct AppModelTests {
         #expect(model.discoveredMugs[1].name == "Ember Ceramic Mug")
     }
 
+    @Test func delayedTargetChangeStaysWithItsOriginalMug() async throws {
+        let (model, coordinator) = twoMugControlModel()
+        model.selectSidebarMug(identifier: "MUG-2")
+        model.turnTemperatureControlOff()
+        coordinator.targetWrites.removeAll()
+
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.increaseTemperatureDraft()
+        model.selectSidebarMug(identifier: "MUG-2")
+        try await waitForTargetWrites(coordinator, count: 1)
+
+        #expect(coordinator.targetWrites == [.init(celsius: 56, identifier: "MUG-1")])
+        #expect(model.selectedMugIdentifier == "MUG-2")
+        #expect(model.isTemperatureControlOff)
+        #expect(model.targetTemperatureDraftCelsius == 55)
+    }
+
+    @Test func delayedHeatingChangeStaysWithItsOriginalMug() async throws {
+        let (model, coordinator) = twoMugControlModel()
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.setTemperatureControlEnabled(false)
+        model.selectSidebarMug(identifier: "MUG-2")
+        try await waitForTargetWrites(coordinator, count: 1)
+
+        #expect(coordinator.targetWrites == [.init(celsius: nil, identifier: "MUG-1")])
+        #expect(!model.isTemperatureControlOff)
+    }
+
+    @Test func delayedChangesForTwoMugsDoNotCancelEachOther() async throws {
+        let (model, coordinator) = twoMugControlModel()
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.increaseTemperatureDraft()
+        model.increaseTemperatureDraft()
+        model.selectSidebarMug(identifier: "MUG-2")
+        model.decreaseTemperatureDraft()
+        try await waitForTargetWrites(coordinator, count: 2)
+
+        #expect(coordinator.targetWrites.count == 2)
+        #expect(coordinator.targetWrites.contains(.init(celsius: 57, identifier: "MUG-1")))
+        #expect(coordinator.targetWrites.contains(.init(celsius: 54, identifier: "MUG-2")))
+        #expect(model.targetTemperatureDraftCelsius == 54)
+    }
+
+    @Test func disconnectAndReconnectDiscardThePreviousQueuedCommand() async throws {
+        let (model, coordinator) = twoMugControlModel()
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.increaseTemperatureDraft()
+        model.disconnectSidebarMug(identifier: "MUG-1")
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-1"))
+        coordinator.targetWrites.removeAll()
+        try await Task.sleep(for: .milliseconds(400))
+
+        #expect(coordinator.targetWrites.isEmpty)
+    }
+
+    @Test func newerTargetChoiceReplacesQueuedHeatingOff() async throws {
+        let (model, coordinator) = twoMugControlModel()
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.setTemperatureControlEnabled(false)
+        model.increaseTemperatureDraft()
+        try await waitForTargetWrites(coordinator, count: 1)
+
+        #expect(coordinator.targetWrites == [.init(celsius: 56, identifier: "MUG-1")])
+        #expect(!model.isTemperatureControlOff)
+    }
+
+    @Test func telemetryFloodCoalescesHistoryAndFlushesItsFinalReading() async throws {
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore())
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: 50))
+        for index in 0 ..< 1_001 {
+            model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, currentTemperatureCelsius: Double(54 + index % 2)))
+        }
+        #expect(historyEvents(for: "MUG-1", in: model).count == 1)
+        let deadline = ContinuousClock.now + .seconds(8)
+        while historyEvents(for: "MUG-1", in: model).count < 2, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        let events = historyEvents(for: "MUG-1", in: model)
+        #expect(events.count == 2)
+        #expect(events.last?.temperatureCelsius == 54)
+        #expect(model.currentTemperatureCelsius == 54)
+    }
+
+    @Test func historyTransitionFloodHasABoundedBurstAndRefill() {
+        var budget = MugHistoryRecordingBudget()
+        let now = Date()
+        var accepted = 0
+        for index in 0 ..< 10_000 {
+            if budget.admit(kind: index.isMultiple(of: 2) ? .heatingChanged : .batteryRecalibrated, now: now) {
+                accepted += 1
+            }
+        }
+        #expect(accepted == 8)
+        let acceptedAfterRefill = budget.admit(kind: .disconnected, now: now.addingTimeInterval(5))
+        let acceptedWithoutRefill = budget.admit(kind: .connected, now: now.addingTimeInterval(5))
+        #expect(acceptedAfterRefill)
+        #expect(!acceptedWithoutRefill)
+    }
+
+    @Test func historyWriteBacklogFallsBackToOneReplacement() {
+        var buffer = MugHistoryWriteBuffer()
+        for _ in 0 ..< 10_000 {
+            buffer.enqueue(sampleHistoryEvent())
+            #expect(buffer.events.count <= MugHistoryWriteBuffer.maximumCount)
+        }
+        #expect(buffer.needsReplacement)
+        let needsReplacement = buffer.takeReplacementRequest()
+        #expect(needsReplacement)
+        #expect(buffer.isEmpty)
+        buffer.enqueue(sampleHistoryEvent())
+        let batch = buffer.takeBatch()
+        #expect(batch.count == 1)
+        #expect(buffer.isEmpty)
+    }
+
+    @Test func slowHistoryStoragePersistsTheLatestCompleteStateAfterBackpressure() async throws {
+        var now = Date()
+        let store = SuspendingHistoryStore()
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), mugHistoryStore: store, nowProvider: { now })
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, currentTemperatureCelsius: 50))
+        let startDeadline = ContinuousClock.now + .seconds(2)
+        while !(await store.isSuspended), ContinuousClock.now < startDeadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(await store.isSuspended)
+        for index in 0 ..< 600 {
+            now = now.addingTimeInterval(10)
+            model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, currentTemperatureCelsius: Double(54 + index % 2)))
+        }
+        let expected = Set(model.mugHistoryEvents.map(\.id))
+        await store.resume()
+        let endDeadline = ContinuousClock.now + .seconds(3)
+        while await store.persistedIDs != expected, ContinuousClock.now < endDeadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(await store.persistedIDs == expected)
+        #expect(await store.replacementCount > 0)
+    }
+
+    private actor SuspendingHistoryStore: MugHistoryStoring {
+        private var events: [MugHistoryEvent] = []
+        private var suspension: CheckedContinuation<Void, Never>?
+        private var shouldSuspend = true
+        private(set) var replacementCount = 0
+        var isSuspended: Bool { suspension != nil }
+        var persistedIDs: Set<UUID> { Set(events.map(\.id)) }
+
+        func loadEvents() async throws -> [MugHistoryEvent] { events }
+        func append(_ event: MugHistoryEvent) async throws {
+            if shouldSuspend {
+                shouldSuspend = false
+                await withCheckedContinuation { suspension = $0 }
+            }
+            events.append(event)
+        }
+        func replaceEvents(_ events: [MugHistoryEvent]) async throws {
+            self.events = events
+            replacementCount += 1
+        }
+        func resume() {
+            suspension?.resume()
+            suspension = nil
+        }
+    }
+
+    @Test func historyRetentionBoundsEachMugAndTheTotal() {
+        let now = Date()
+        var limits = MugHistoryLimits()
+        limits.maximumEvents = 7
+        limits.maximumEventsPerMug = 4
+        let events = (0 ..< 20).map { index in
+            boundedHistoryEvent(timestamp: now.addingTimeInterval(Double(index - 20)), mugIdentifier: index.isMultiple(of: 2) ? "MUG-1" : "MUG-2")
+        }
+        let retained = MugHistoryRetention.pruned(events, now: now, limits: limits)
+        #expect(retained.count == 7)
+        #expect(retained.filter { $0.mugIdentifier == "MUG-1" }.count <= 4)
+        #expect(retained.filter { $0.mugIdentifier == "MUG-2" }.count <= 4)
+        #expect(retained.last == events.last)
+    }
+
+    @Test nonisolated func historyCapacityPreservesThirtyDaysOfNormalThreeMugPolling() {
+        let now = Date()
+        let start = now.addingTimeInterval(-MugHistoryRetention.duration)
+        let identifiers = (0 ..< 3).map { _ in UUID().uuidString }
+        var events: [MugHistoryEvent] = []
+        for sample in 0 ..< 129_600 {
+            for identifier in identifiers {
+                events.append(boundedHistoryEvent(timestamp: start.addingTimeInterval(Double(sample * 20)), mugIdentifier: identifier))
+            }
+        }
+        let retained = MugHistoryRetention.pruned(events, now: now)
+        #expect(retained.count == 388_800)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let recordBytes = (try? encoder.encode(events[0]).count) ?? Int.max
+        #expect((recordBytes + 1) * events.count < MugHistoryLimits.standard.maximumFileBytes)
+    }
+
+    @Test func historyFileRecoversABoundedTailFromAnOversizedLegacyFile() async throws {
+        let directory = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("history.jsonl")
+        let limits = smallHistoryLimits()
+        let expected = boundedHistoryEvent(timestamp: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down)), mugIdentifier: "MUG-1")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var data = Data(repeating: 0x78, count: limits.maximumFileBytes * 2)
+        data.append(0x0A)
+        data.append(try encoder.encode(expected))
+        data.append(0x0A)
+        try data.write(to: file)
+        let store = MugHistoryFileStore(fileURL: file, limits: limits)
+
+        #expect(try await store.loadEvents() == [expected])
+        let bytes = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int
+        #expect((bytes ?? Int.max) <= limits.maximumFileBytes)
+    }
+
+    @Test func historyFileAppendAndReplacementStayWithinByteAndRecordLimits() async throws {
+        let directory = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("history.jsonl")
+        let limits = smallHistoryLimits()
+        let store = MugHistoryFileStore(fileURL: file, limits: limits)
+        let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        let events = (0 ..< 100).map { index in
+            boundedHistoryEvent(timestamp: now.addingTimeInterval(Double(index)), mugIdentifier: "MUG-1")
+        }
+        try await store.replaceEvents(events)
+        for _ in 0 ..< 100 { try await store.append(events.last!) }
+        let loaded = try await store.loadEvents()
+        #expect(loaded.count <= limits.maximumEventsPerMug)
+        #expect(loaded.last == events.last)
+        let bytes = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int
+        #expect((bytes ?? Int.max) <= limits.maximumFileBytes)
+
+        do {
+            try await store.append(boundedHistoryEvent(timestamp: now, mugIdentifier: String(repeating: "x", count: 5_000)))
+            Issue.record("An oversized history record was accepted")
+        } catch MugHistoryFileStoreError.oversizedRecord {}
+    }
+
+    @Test func concurrentHistoryAppendsDoNotLoseNewerEventsDuringCompaction() async throws {
+        let directory = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = MugHistoryFileStore(fileURL: directory.appendingPathComponent("history.jsonl"))
+        let now = Date()
+        let events = (0 ..< 1_050).map { index in
+            boundedHistoryEvent(timestamp: now.addingTimeInterval(Double(index)), mugIdentifier: "MUG-1")
+        }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for event in events { group.addTask { try await store.append(event) } }
+            try await group.waitForAll()
+        }
+        let loaded = try await store.loadEvents()
+        #expect(Set(loaded.map(\.id)) == Set(events.map(\.id)))
+    }
+
+    private func smallHistoryLimits() -> MugHistoryLimits {
+        var limits = MugHistoryLimits()
+        limits.maximumEvents = 30
+        limits.maximumEventsPerMug = 20
+        limits.maximumFileBytes = 8_192
+        limits.maximumRecordBytes = 1_024
+        return limits
+    }
+
+    @Test func aValidatedDiscoveryIdentityCannotLaterBeDiscardedBySerialChanges() {
+        let coordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), bluetoothCoordinator: coordinator)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-1", serialNumber: "FIRST"))
+        model.apply(snapshot: discoverySnapshot(discoveredMugs: [.init(identifier: "MUG-2", name: "Other", rssi: -60, finish: nil, size: nil)]))
+        model.connectDiscoveryMug(identifier: "MUG-2")
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-2", serialNumber: "SECOND"))
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-2", serialNumber: "FIRST"))
+        #expect(Set(model.savedMugIdentifiers) == ["MUG-1", "MUG-2"])
+        #expect(coordinator.forgottenMugIdentifiers.isEmpty)
+    }
+
+    @Test func staleDiscoveryProvenanceCannotAuthoriseRemovingASavedMug() {
+        var now = Date()
+        let coordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), bluetoothCoordinator: coordinator, nowProvider: { now })
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-1", serialNumber: ""))
+        model.apply(snapshot: discoverySnapshot(discoveredMugs: [.init(identifier: "MUG-2", name: "Other", rssi: -60, finish: nil, size: nil)]))
+        model.connectDiscoveryMug(identifier: "MUG-2")
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-2", serialNumber: "SHARED"))
+        now = now.addingTimeInterval(61)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-1", serialNumber: "SHARED"))
+        #expect(Set(model.savedMugIdentifiers) == ["MUG-1", "MUG-2"])
+        #expect(coordinator.forgottenMugIdentifiers.isEmpty)
+    }
+
+    @Test func forgettingTheOriginatingMugCancelsItsQueuedTargetChange() async throws {
+        let (model, coordinator) = twoMugControlModel()
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.increaseTemperatureDraft()
+        model.forgetSidebarMug(identifier: "MUG-1")
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(coordinator.targetWrites.isEmpty)
+    }
+
+    @Test func delayedHeatingOnDoesNotEnableTheNewlySelectedMug() async throws {
+        let (model, coordinator) = twoMugControlModel()
+        for identifier in ["MUG-1", "MUG-2"] {
+            model.selectSidebarMug(identifier: identifier)
+            model.turnTemperatureControlOff()
+        }
+        coordinator.targetWrites.removeAll()
+        model.selectSidebarMug(identifier: "MUG-1")
+        model.setTemperatureControlEnabled(true)
+        model.selectSidebarMug(identifier: "MUG-2")
+        try await waitForTargetWrites(coordinator, count: 1)
+        #expect(coordinator.targetWrites == [.init(celsius: 55, identifier: "MUG-1")])
+        #expect(model.isTemperatureControlOff)
+    }
+
+    @Test func historyMarksAGapAfterExcessiveStateTransitions() {
+        var now = Date()
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), nowProvider: { now })
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, currentTemperatureCelsius: 50))
+        for index in 0 ..< 20 { model.setTemperatureControlEnabled(!index.isMultiple(of: 2)) }
+        now = now.addingTimeInterval(5)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, currentTemperatureCelsius: 54))
+        #expect(historyEvents(for: "MUG-1", in: model).last?.kind == .recordingGap)
+        for metric in MugHistoryMetric.allCases {
+            #expect(model.historyChartSegments(metric: metric, now: now).last?.points.first?.timestamp == now)
+        }
+    }
+
+    @Test func historyRecordsAGapEvenWhenOverloadReturnsToTheLastRecordedState() {
+        var now = Date()
+        let model = AppModel(startBluetooth: false, preferences: InMemoryAppPreferencesStore(), nowProvider: { now })
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 58, currentTemperatureCelsius: 50))
+        for index in 0 ..< 21 { model.setTemperatureControlEnabled(!index.isMultiple(of: 2)) }
+        now = now.addingTimeInterval(5)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 0, currentTemperatureCelsius: 50))
+        #expect(historyEvents(for: "MUG-1", in: model).last?.kind == .recordingGap)
+    }
+
+    @Test func historyFileSkipsOversizedAndTruncatedRecordsWithoutLosingValidOnes() async throws {
+        let directory = try temporaryHistoryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("history.jsonl")
+        let limits = smallHistoryLimits()
+        let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        let expected = boundedHistoryEvent(timestamp: now, mugIdentifier: "MUG-1")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var data = Data(repeating: 0x78, count: limits.maximumRecordBytes * 2)
+        data.append(0x0A)
+        data.append(try encoder.encode(expected))
+        data.append(contentsOf: "\n{\"timestamp\":".utf8)
+        try data.write(to: file)
+        let store = MugHistoryFileStore(fileURL: file, limits: limits)
+        let loaded = try await store.loadEvents()
+        #expect(loaded == [expected])
+        #expect(try await store.loadEvents() == loaded)
+    }
+
+    nonisolated private func boundedHistoryEvent(timestamp: Date, mugIdentifier: String) -> MugHistoryEvent {
+        MugHistoryEvent(timestamp: timestamp, mugIdentifier: mugIdentifier, appSessionID: UUID(), kind: .reading,
+                        batteryPercent: 70, temperatureCelsius: 54, isHeatingOn: true, isConnected: true)
+    }
+
+    private func twoMugControlModel() -> (AppModel, RecordingBluetoothCoordinator) {
+        let coordinator = RecordingBluetoothCoordinator()
+        let model = AppModel(
+            startBluetooth: false,
+            preferences: InMemoryAppPreferencesStore(),
+            heatingToggleSoundPlayer: SpyHeatingToggleSoundPlayer(),
+            bluetoothCoordinator: coordinator
+        )
+        model.setTargetTemperatureDraft(to: 55)
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-1"))
+        model.apply(snapshot: connectedSnapshot(targetTemperatureCelsius: 55, activePeripheralIdentifier: "MUG-2"))
+        coordinator.targetWrites.removeAll()
+        return (model, coordinator)
+    }
+
+    private func waitForTargetWrites(_ coordinator: RecordingBluetoothCoordinator, count: Int) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while coordinator.targetWrites.count < count, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+
     @MainActor
     private final class RecordingBluetoothCoordinator: EmberMugBluetoothCoordinating {
         struct TargetWrite: Equatable {
@@ -2787,6 +3385,7 @@ struct AppModelTests {
         var refreshReadingsCallCount = 0
         var scanForPreferredMugCallCount = 0
         var disconnectedMugIdentifiers: [String] = []
+        var forgottenMugIdentifiers: [String] = []
 
         func retryScan() {}
         func setPreferredPeripheralIdentifier(_ identifier: String?) {
@@ -2811,7 +3410,9 @@ struct AppModelTests {
             disconnectedMugIdentifiers.append(identifier)
         }
 
-        func forgetMug(identifier: String) {}
+        func forgetMug(identifier: String) {
+            forgottenMugIdentifiers.append(identifier)
+        }
         func startDiscoveryScan(excluding identifiers: [String]) {}
         func refreshReadings() {
             refreshReadingsCallCount += 1
@@ -2829,6 +3430,15 @@ struct AppModelTests {
 
         func playHeatingToggleSound(isEnabled: Bool) {
             events.append(isEnabled)
+        }
+    }
+
+    @MainActor
+    private final class SpyTargetTemperatureSoundPlayer: TargetTemperatureSoundPlaying {
+        var playCount = 0
+
+        func playTargetTemperatureReachedSound() {
+            playCount += 1
         }
     }
 
@@ -2903,7 +3513,8 @@ struct AppModelTests {
         currentTemperatureCelsius: Double? = 54,
         batteryLevel: Double? = 0.7,
         isCharging: Bool = false,
-        serialNumber: String? = nil
+        serialNumber: String? = nil,
+        lastBatteryReadingAt: Date? = nil
     ) -> BluetoothRuntimeSnapshot {
         let resolvedSerialNumber = serialNumber ?? {
             if activePeripheralIdentifier == "MUG-1" {
@@ -2938,6 +3549,7 @@ struct AppModelTests {
             canReadContents: false,
             canReadActivity: false,
             canWriteTargetTemperature: canWriteTargetTemperature,
+            lastBatteryReadingAt: lastBatteryReadingAt,
             lastConnectedAt: nil,
             lastReadingAt: nil,
             lastTargetWriteAt: nil

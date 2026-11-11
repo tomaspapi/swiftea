@@ -11,6 +11,8 @@ enum MugHistoryFileStoreError: Error, Equatable {
     case unsafeParentDirectory(String)
     case unsafeHistoryFile(String)
     case invalidHistoryFileName(String)
+    case historySizeLimit
+    case oversizedRecord
     case fileOperationFailed(String, Int32)
 }
 
@@ -22,9 +24,13 @@ actor MugHistoryFileStore: MugHistoryStoring {
     private let fileName: String
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let limits: MugHistoryLimits
     private var appendCountSincePrune = 0
 
-    init(fileURL: URL? = nil) {
+    init(fileURL: URL? = nil, limits: MugHistoryLimits = .standard) {
+        precondition(limits.maximumEvents > 0 && limits.maximumEventsPerMug > 0)
+        precondition(limits.maximumFileBytes > limits.maximumRecordBytes && limits.maximumRecordBytes > 0)
+        self.limits = limits
         self.fileURL = fileURL ?? Self.defaultFileURL()
         self.parentDirectoryURL = self.fileURL.deletingLastPathComponent()
         self.fileName = self.fileURL.lastPathComponent
@@ -38,48 +44,83 @@ actor MugHistoryFileStore: MugHistoryStoring {
         self.decoder = decoder
     }
 
-    func loadEvents() async throws -> [MugHistoryEvent] {
-        guard let data = try readHistoryDataIfPresent() else { return [] }
-
-        guard let contents = String(data: data, encoding: .utf8) else { return [] }
-
-        let events = contents
-            .split(separator: "\n")
-            .compactMap { line -> MugHistoryEvent? in
-                guard let data = line.data(using: .utf8) else { return nil }
-                return try? decoder.decode(MugHistoryEvent.self, from: data)
+    func loadEvents() throws -> [MugHistoryEvent] {
+        guard let result = try readHistoryDataIfPresent() else { return [] }
+        let data = result.data
+        var events: [MugHistoryEvent] = []
+        var nextReplacementIndex = 0
+        var needsRewrite = result.wasTrimmed
+        var lineStart = data.startIndex
+        func decodeLine(endingAt end: Int) {
+            defer { lineStart = end + 1 }
+            guard end > lineStart else { return }
+            guard end - lineStart <= limits.maximumRecordBytes,
+                  let event = try? decoder.decode(MugHistoryEvent.self, from: data.subdata(in: lineStart ..< end)) else {
+                needsRewrite = true
+                return
             }
-
-        let prunedEvents = MugHistoryRetention.pruned(events)
-        if prunedEvents.count != events.count {
-            try await replaceEvents(prunedEvents)
+            if events.count < limits.maximumEvents {
+                events.append(event)
+            } else {
+                events[nextReplacementIndex] = event
+                nextReplacementIndex = (nextReplacementIndex + 1) % limits.maximumEvents
+                needsRewrite = true
+            }
+        }
+        for index in data.indices where data[index] == 0x0A { decodeLine(endingAt: index) }
+        if lineStart < data.endIndex { decodeLine(endingAt: data.endIndex) }
+        if nextReplacementIndex > 0 {
+            events = Array(events[nextReplacementIndex...] + events[..<nextReplacementIndex])
+        }
+        let prunedEvents = MugHistoryRetention.pruned(events, limits: limits)
+        if needsRewrite || prunedEvents.count != events.count {
+            try replaceEvents(prunedEvents)
         }
 
         return prunedEvents
     }
 
-    func append(_ event: MugHistoryEvent) async throws {
+    func append(_ event: MugHistoryEvent) throws {
         var line = try encoder.encode(event)
+        guard line.count <= limits.maximumRecordBytes else { throw MugHistoryFileStoreError.oversizedRecord }
         line.append(0x0A)
-        try appendHistoryData(line)
+        do {
+            try appendHistoryData(line)
+        } catch MugHistoryFileStoreError.historySizeLimit {
+            let events = try loadEvents()
+            try replaceHistoryData(encodedHistory(events + [event], byteLimit: limits.maximumFileBytes * 9 / 10))
+            appendCountSincePrune = 0
+            return
+        }
 
         appendCountSincePrune += 1
-        if appendCountSincePrune >= 100 {
+        if appendCountSincePrune >= 1_000 {
             appendCountSincePrune = 0
-            let events = try await loadEvents()
-            try await replaceEvents(events)
+            let events = try loadEvents()
+            try replaceEvents(events)
         }
     }
 
-    func replaceEvents(_ events: [MugHistoryEvent]) async throws {
-        let sortedEvents = events.sorted { $0.timestamp < $1.timestamp }
-        var data = Data()
-        for event in sortedEvents {
-            data.append(try encoder.encode(event))
-            data.append(0x0A)
-        }
+    func replaceEvents(_ events: [MugHistoryEvent]) throws {
+        try replaceHistoryData(encodedHistory(events, byteLimit: limits.maximumFileBytes))
+        appendCountSincePrune = 0
+    }
 
-        try replaceHistoryData(data)
+    private func encodedHistory(_ events: [MugHistoryEvent], byteLimit: Int) throws -> Data {
+        let retained = MugHistoryRetention.pruned(events, limits: limits)
+        var lines: [Data] = []
+        var byteCount = 0
+        for event in retained.reversed() {
+            var line = try encoder.encode(event)
+            guard line.count <= limits.maximumRecordBytes else { throw MugHistoryFileStoreError.oversizedRecord }
+            line.append(0x0A)
+            guard byteCount + line.count <= byteLimit else { break }
+            lines.append(line)
+            byteCount += line.count
+        }
+        var data = Data(capacity: byteCount)
+        for line in lines.reversed() { data.append(line) }
+        return data
     }
 
     private static func defaultFileURL() -> URL {
@@ -100,7 +141,7 @@ actor MugHistoryFileStore: MugHistoryStoring {
         )
     }
 
-    private func readHistoryDataIfPresent() throws -> Data? {
+    private func readHistoryDataIfPresent() throws -> (data: Data, wasTrimmed: Bool)? {
         guard let parentDescriptor = try openParentDirectory(createIfNeeded: false) else {
             return nil
         }
@@ -108,14 +149,26 @@ actor MugHistoryFileStore: MugHistoryStoring {
 
         let descriptor = try openHistoryFile(
             relativeTo: parentDescriptor,
-            flags: O_RDONLY | O_NOFOLLOW | O_CLOEXEC,
+            flags: O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
             missingIsAllowed: true
         )
         guard let descriptor else { return nil }
         defer { closeDescriptor(descriptor) }
 
-        try validateOpenHistoryFile(descriptor)
-        return try readAllData(from: descriptor)
+        let fileSize = try validateOpenHistoryFile(descriptor)
+        let start = max(0, fileSize - limits.maximumFileBytes)
+        guard lseek(descriptor, off_t(start), SEEK_SET) >= 0 else {
+            throw MugHistoryFileStoreError.fileOperationFailed("seek history file", errno)
+        }
+        var data = try readAllData(from: descriptor, maximumBytes: min(fileSize, limits.maximumFileBytes))
+        if start > 0 {
+            if let newline = data.firstIndex(of: 0x0A) {
+                data = data.subdata(in: data.index(after: newline) ..< data.endIndex)
+            } else {
+                data.removeAll()
+            }
+        }
+        return (data, start > 0)
     }
 
     private func appendHistoryData(_ data: Data) throws {
@@ -127,7 +180,7 @@ actor MugHistoryFileStore: MugHistoryStoring {
         guard
             let descriptor = try openHistoryFile(
                 relativeTo: parentDescriptor,
-                flags: O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_CLOEXEC,
+                flags: O_WRONLY | O_CREAT | O_APPEND | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
                 missingIsAllowed: false
             )
         else {
@@ -135,7 +188,10 @@ actor MugHistoryFileStore: MugHistoryStoring {
         }
         defer { closeDescriptor(descriptor) }
 
-        try validateOpenHistoryFile(descriptor)
+        let fileSize = try validateOpenHistoryFile(descriptor)
+        guard fileSize <= limits.maximumFileBytes - data.count else {
+            throw MugHistoryFileStoreError.historySizeLimit
+        }
         try writeAllData(data, to: descriptor)
     }
 
@@ -242,7 +298,7 @@ actor MugHistoryFileStore: MugHistoryStoring {
     private func validateExistingHistoryFileIfPresent(relativeTo parentDescriptor: CInt) throws {
         let descriptor = try openHistoryFile(
             relativeTo: parentDescriptor,
-            flags: O_RDONLY | O_NOFOLLOW | O_CLOEXEC,
+            flags: O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
             missingIsAllowed: true
         )
 
@@ -263,7 +319,8 @@ actor MugHistoryFileStore: MugHistoryStoring {
         }
     }
 
-    private func validateOpenHistoryFile(_ descriptor: CInt) throws {
+    @discardableResult
+    private func validateOpenHistoryFile(_ descriptor: CInt) throws -> Int {
         var status = stat()
         guard fstat(descriptor, &status) == 0 else {
             throw MugHistoryFileStoreError.fileOperationFailed("inspect history file", errno)
@@ -272,15 +329,16 @@ actor MugHistoryFileStore: MugHistoryStoring {
         guard Self.isRegularFile(status.st_mode), status.st_nlink == 1 else {
             throw MugHistoryFileStoreError.unsafeHistoryFile(fileURL.path)
         }
+        return Int(status.st_size)
     }
 
-    private func readAllData(from descriptor: CInt) throws -> Data {
+    private func readAllData(from descriptor: CInt, maximumBytes: Int) throws -> Data {
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 8192)
 
-        while true {
+        while data.count < maximumBytes {
             let byteCount = buffer.withUnsafeMutableBytes { rawBuffer in
-                read(descriptor, rawBuffer.baseAddress, rawBuffer.count)
+                read(descriptor, rawBuffer.baseAddress, min(rawBuffer.count, maximumBytes - data.count))
             }
 
             if byteCount > 0 {
@@ -291,6 +349,7 @@ actor MugHistoryFileStore: MugHistoryStoring {
                 throw MugHistoryFileStoreError.fileOperationFailed("read history file", errno)
             }
         }
+        return data
     }
 
     private func writeAllData(_ data: Data, to descriptor: CInt) throws {

@@ -1,6 +1,52 @@
 import CoreBluetooth
 import Foundation
 
+struct DiscoveryCandidateCache<Value> {
+    private struct Entry {
+        let value: Value
+        let lastSeenAt: Date
+    }
+
+    let maximumCount: Int
+    let lifetime: TimeInterval
+    private var entries: [UUID: Entry] = [:]
+
+    init(maximumCount: Int = 32, lifetime: TimeInterval = 90) {
+        precondition(maximumCount > 0 && lifetime > 0)
+        self.maximumCount = maximumCount
+        self.lifetime = lifetime
+    }
+
+    var count: Int { entries.count }
+    var isEmpty: Bool { entries.isEmpty }
+    var values: [Value] { entries.values.map(\.value) }
+    subscript(identifier: UUID) -> Value? { entries[identifier]?.value }
+
+    mutating func register(_ value: Value, identifier: UUID, now: Date = Date()) {
+        expire(now: now)
+        if entries[identifier] == nil, entries.count >= maximumCount {
+            let oldest = entries.min { lhs, rhs in
+                if lhs.value.lastSeenAt == rhs.value.lastSeenAt {
+                    return lhs.key.uuidString < rhs.key.uuidString
+                }
+                return lhs.value.lastSeenAt < rhs.value.lastSeenAt
+            }
+            if let oldest { entries.removeValue(forKey: oldest.key) }
+        }
+        entries[identifier] = Entry(value: value, lastSeenAt: now)
+    }
+
+    @discardableResult
+    mutating func expire(now: Date = Date()) -> Bool {
+        let oldCount = entries.count
+        entries = entries.filter { now.timeIntervalSince($0.value.lastSeenAt) < lifetime }
+        return entries.count != oldCount
+    }
+
+    mutating func removeValue(forKey identifier: UUID) { entries.removeValue(forKey: identifier) }
+    mutating func removeAll() { entries.removeAll() }
+}
+
 @MainActor
 final class EmberMugBluetoothCoordinator: NSObject {
     static let maximumSimultaneousMugs = 3
@@ -104,6 +150,15 @@ final class EmberMugBluetoothCoordinator: NSObject {
             return false
         }
 
+        var keepsScanningUntilStopped: Bool {
+            switch self {
+            case .autoConnect, .discovery:
+                true
+            case .preferred, .manual:
+                false
+            }
+        }
+
         var scanServiceFilter: [CBUUID]? {
             switch self {
             case .discovery, .manual:
@@ -124,13 +179,20 @@ final class EmberMugBluetoothCoordinator: NSObject {
     private var preferredPeripheralIdentifier: UUID?
     private var autoConnectPeripheralIdentifiers: Set<UUID>
     private var sessionsByIdentifier: [UUID: MugPeripheralSession] = [:]
-    private var discoveredCandidates: [UUID: CandidateRecord] = [:]
+    private var discoveredCandidates = DiscoveryCandidateCache<CandidateRecord>()
+    private var publishedDiscoveredMugs: [BluetoothRuntimeSnapshot.DiscoveredMug] = []
+    private var discoveryPublicationWorkItem: DispatchWorkItem?
+    private var discoveryExpiryWorkItem: DispatchWorkItem?
+    private var readingPublicationByMug: [UUID: DispatchWorkItem] = [:]
     private var activeScanMode: ScanMode?
     private var scanProgressUpdateWorkItem: DispatchWorkItem?
     private var scanTimeoutWorkItem: DispatchWorkItem?
     private var autoConnectWorkItem: DispatchWorkItem?
     private var globalDiscoveryPhase: BluetoothRuntimeSnapshot.DiscoveryPhase = .starting
     private var globalDetailMessage = "Checking Bluetooth availability on this Mac."
+    private lazy var connectionMonitor = MugConnectionMonitor { [weak self] in
+        self?.maintainConnections()
+    }
 
     init(
         preferredPeripheralIdentifier: String? = nil,
@@ -151,18 +213,138 @@ final class EmberMugBluetoothCoordinator: NSObject {
     }
 
     func setAutoConnectPeripheralIdentifiers(_ identifiers: [String]) {
-        autoConnectPeripheralIdentifiers = Set(
+        let updatedIdentifiers = Set(
             identifiers
                 .prefix(Self.maximumSimultaneousMugs)
                 .compactMap(UUID.init(uuidString:))
         )
+        guard updatedIdentifiers != autoConnectPeripheralIdentifiers else { return }
+
+        let removedIdentifiers = autoConnectPeripheralIdentifiers.subtracting(updatedIdentifiers)
+        autoConnectPeripheralIdentifiers = updatedIdentifiers
+
+        for identifier in removedIdentifiers {
+            guard
+                let session = sessionsByIdentifier[identifier],
+                session.phase == .connecting,
+                session.peripheral.state == .connecting
+            else { continue }
+
+            session.cancelConnectionTimeout()
+            central?.cancelPeripheralConnection(session.peripheral)
+            session.resetLiveReadState(keepConnectionState: false)
+            session.phase = .disconnected
+            session.detailMessage = "Automatic reconnect is off for \(session.name)."
+            publishSnapshot(for: session)
+        }
+
+        if case .autoConnect = activeScanMode {
+            central?.stopScan()
+            cancelScanProgressUpdate()
+            cancelScanTimeout()
+            activeScanMode = nil
+            continueAutoConnectScanIfNeeded()
+        }
+        synchronizeConnectionMonitoring()
     }
 
     func recoverAutoConnectMugs() {
+        maintainConnections()
+    }
+
+    private func synchronizeConnectionMonitoring() {
+        let needsMonitoring = !autoConnectPeripheralIdentifiers.isEmpty
+            || sessionsByIdentifier.values.contains { $0.phase == .connected || $0.phase == .connecting }
+        connectionMonitor.setEnabled(needsMonitoring && central?.state == .poweredOn && isScanAllowed)
+    }
+
+    private func maintainConnections() {
+        guard let central, central.state == .poweredOn, isScanAllowed else { return }
+
+        for session in Array(sessionsByIdentifier.values) {
+            let mayReconnect = autoConnectPeripheralIdentifiers.contains(session.identifier)
+            switch Self.maintenanceAction(
+                phase: session.phase,
+                peripheralState: session.peripheral.state,
+                mayReconnect: mayReconnect,
+                hasReadableCharacteristics: session.hasReadableCharacteristics,
+                hasSetupDeadline: session.connectionTimeoutWorkItem != nil
+            ) {
+            case .markDisconnected:
+                session.cancelConnectionTimeout()
+                session.resetLiveReadState(keepConnectionState: false)
+                session.detailMessage = "Waiting for the mug to become available."
+                publishSnapshot(for: session)
+            case .wait:
+                // Native pending requests must survive an overnight absence, not time out in a loop.
+                continue
+            case .discoverServices:
+                session.resetLiveReadState(keepConnectionState: false)
+                session.phase = .connecting
+                session.peripheral.delegate = self
+                session.peripheral.discoverServices([EmberGATT.service])
+                scheduleConnectionTimeout(for: session)
+                publishSnapshot(for: session)
+            case .read:
+                var requiredCharacteristics: [CBUUID] = []
+                if session.canReadCurrentTemperature { requiredCharacteristics.append(EmberGATT.currentTemperature) }
+                if session.canReadActivity {
+                    requiredCharacteristics.append(EmberGATT.liquidState)
+                } else if session.canReadContents {
+                    requiredCharacteristics.append(EmberGATT.contentsLevel)
+                }
+                let action = session.readingHealth.action(
+                    requiredCharacteristics: requiredCharacteristics,
+                    uptime: ProcessInfo.processInfo.systemUptime
+                )
+                if action == .reconnect, mayReconnect {
+                    AppLog.bluetooth.notice("Replacing an unresponsive saved-mug connection after a fresh-read attempt.")
+                    session.cancelConnectionTimeout()
+                    session.resetLiveReadState(keepConnectionState: false)
+                    session.phase = .connecting
+                    session.detailMessage = "Restoring live mug readings."
+                    central.cancelPeripheralConnection(session.peripheral)
+                    publishSnapshot(for: session)
+                } else {
+                    refreshReadings(for: session.identifier.uuidString, trigger: .automatic)
+                }
+            }
+        }
+
         recoverExistingConnectionsAndAutoConnectIfPossible()
+        synchronizeConnectionMonitoring()
+    }
+
+    enum MaintenanceAction: Equatable {
+        case wait
+        case markDisconnected
+        case discoverServices
+        case read
+    }
+
+    nonisolated static func maintenanceAction(
+        phase: BluetoothRuntimeSnapshot.DiscoveryPhase,
+        peripheralState: CBPeripheralState,
+        mayReconnect: Bool,
+        hasReadableCharacteristics: Bool,
+        hasSetupDeadline: Bool
+    ) -> MaintenanceAction {
+        guard mayReconnect || phase == .connected || phase == .connecting else { return .wait }
+        switch peripheralState {
+        case .disconnected:
+            return phase == .connected || phase == .connecting ? .markDisconnected : .wait
+        case .connecting, .disconnecting:
+            return .wait
+        case .connected:
+            if phase == .connected, hasReadableCharacteristics { return .read }
+            return hasSetupDeadline ? .wait : .discoverServices
+        @unknown default:
+            return .wait
+        }
     }
 
     func connectToCandidate(identifier: String) {
+        discoveredCandidates.expire()
         guard let uuid = UUID(uuidString: identifier), let candidate = discoveredCandidates[uuid] else {
             globalDetailMessage = "That mug is no longer available. Try scanning again."
             AppLog.bluetooth.error("Explicit connect requested for unknown candidate \(identifier, privacy: .private).")
@@ -220,11 +402,12 @@ final class EmberMugBluetoothCoordinator: NSObject {
         cancelScanProgressUpdate()
         cancelScanTimeout()
         cancelAutoConnect()
-        discoveredCandidates = [:]
+        clearDiscoveryCandidates()
         activeScanMode = nil
         globalDiscoveryPhase = .idle
         globalDetailMessage = "Discovery stopped."
         publishGlobalSnapshot()
+        continueAutoConnectScanIfNeeded()
     }
 
     func disconnectMug(identifier: String) {
@@ -249,8 +432,10 @@ final class EmberMugBluetoothCoordinator: NSObject {
     func forgetMug(identifier: String) {
         guard let uuid = UUID(uuidString: identifier) else { return }
 
+        readingPublicationByMug.removeValue(forKey: uuid)?.cancel()
         autoConnectPeripheralIdentifiers.remove(uuid)
         discoveredCandidates.removeValue(forKey: uuid)
+        refreshDiscoveredMugsSnapshot()
 
         if preferredPeripheralIdentifier == uuid {
             preferredPeripheralIdentifier = nil
@@ -394,7 +579,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
             central.stopScan()
         }
 
-        discoveredCandidates = [:]
+        clearDiscoveryCandidates()
         activeScanMode = mode
         globalDiscoveryPhase = .scanning
         globalDetailMessage = switch mode {
@@ -408,11 +593,16 @@ final class EmberMugBluetoothCoordinator: NSObject {
 
         AppLog.bluetooth.info("Starting Ember scan.")
         central.scanForPeripherals(withServices: mode.scanServiceFilter, options: [
-            CBCentralManagerScanOptionAllowDuplicatesKey: false
+            CBCentralManagerScanOptionAllowDuplicatesKey: mode.isContinuousDiscovery
         ])
         if !mode.isContinuousDiscovery {
             scheduleScanProgressUpdate()
+        }
+        if !mode.keepsScanningUntilStopped {
             scheduleScanTimeout()
+        }
+        if mode.isContinuousDiscovery {
+            scheduleDiscoveryExpiry()
         }
         publishGlobalSnapshot()
     }
@@ -452,13 +642,53 @@ final class EmberMugBluetoothCoordinator: NSObject {
         session.phase = .connecting
         session.detailMessage = "Found \(session.name). Connecting now."
         sessionsByIdentifier[peripheral.identifier] = session
+        clearDiscoveryCandidates()
 
         AppLog.bluetooth.info(
             "Discovered mug \(session.name, privacy: .private) with finish \(session.finish?.rawValue ?? "unknown", privacy: .private) and size \(session.size?.rawValue ?? "unknown", privacy: .private). Attempting connection."
         )
 
-        central?.connect(peripheral)
+        central?.connect(
+            peripheral,
+            options: connectionOptions(for: peripheral.identifier)
+        )
         scheduleConnectionTimeout(for: session)
+        publishSnapshot(for: session)
+    }
+
+    private func connectionOptions(for identifier: UUID) -> [String: Any]? {
+        guard autoConnectPeripheralIdentifiers.contains(identifier) else { return nil }
+        return [CBConnectPeripheralOptionEnableAutoReconnect: true]
+    }
+
+    private func beginPersistentAutoConnect(to peripheral: CBPeripheral) {
+        guard autoConnectPeripheralIdentifiers.contains(peripheral.identifier) else { return }
+        guard !isConnectedOrConnecting(peripheral.identifier) else { return }
+        guard activeConnectionCount < Self.maximumSimultaneousMugs else { return }
+
+        let session = sessionsByIdentifier[peripheral.identifier] ?? MugPeripheralSession(
+            peripheral: peripheral,
+            name: peripheral.name ?? "Ember Mug 2",
+            finish: nil,
+            size: nil,
+            phase: .connecting,
+            detailMessage: "Waiting for \(peripheral.name ?? "your mug") to become available."
+        )
+
+        session.cancelConnectionTimeout()
+        session.peripheral = peripheral
+        session.name = peripheral.name ?? session.name
+        session.resetLiveReadState(keepConnectionState: false)
+        session.phase = .connecting
+        session.detailMessage = "Waiting for \(session.name) to become available."
+        sessionsByIdentifier[peripheral.identifier] = session
+        peripheral.delegate = self
+
+        AppLog.bluetooth.info("Keeping a native reconnect request pending for saved mug \(session.name, privacy: .private).")
+        central?.connect(
+            peripheral,
+            options: [CBConnectPeripheralOptionEnableAutoReconnect: true]
+        )
         publishSnapshot(for: session)
     }
 
@@ -490,6 +720,16 @@ final class EmberMugBluetoothCoordinator: NSObject {
             publishSnapshot(for: session)
         }
 
+        let identifiersNeedingConnection = autoConnectPeripheralIdentifiers.filter {
+            !isConnectedOrConnecting($0)
+        }
+        let knownPeripherals = central.retrievePeripherals(
+            withIdentifiers: Array(identifiersNeedingConnection)
+        )
+        for peripheral in knownPeripherals {
+            beginPersistentAutoConnect(to: peripheral)
+        }
+
         continueAutoConnectScanIfNeeded()
     }
 
@@ -498,6 +738,12 @@ final class EmberMugBluetoothCoordinator: NSObject {
             .filter { !isConnectedOrConnecting($0) }
 
         guard !remainingIdentifiers.isEmpty else {
+            if case .autoConnect = activeScanMode {
+                central?.stopScan()
+                cancelScanProgressUpdate()
+                cancelScanTimeout()
+                activeScanMode = nil
+            }
             if sessionsByIdentifier.isEmpty {
                 globalDiscoveryPhase = .idle
                 globalDetailMessage = "No saved mug is selected. Use the + button when you want to connect one."
@@ -507,6 +753,16 @@ final class EmberMugBluetoothCoordinator: NSObject {
         }
 
         guard activeConnectionCount < Self.maximumSimultaneousMugs else { return }
+        if let activeScanMode {
+            switch activeScanMode {
+            case .discovery, .manual, .preferred:
+                return
+            case .autoConnect:
+                break
+            }
+        }
+        if case let .autoConnect(identifiers) = activeScanMode,
+           identifiers == remainingIdentifiers, central?.isScanning == true { return }
         startScan(mode: .autoConnect(remainingIdentifiers))
     }
 
@@ -622,6 +878,9 @@ final class EmberMugBluetoothCoordinator: NSObject {
     }
 
     private func evaluateDiscoveryStateAfterRegisteringCandidate(_ candidate: CandidateRecord) {
+        if activeScanMode?.isContinuousDiscovery != true {
+            refreshDiscoveredMugsSnapshot()
+        }
         switch activeScanMode {
         case let .autoConnect(identifiers):
             if identifiers.contains(candidate.peripheral.identifier) {
@@ -637,10 +896,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
             }
         case .discovery:
             globalDiscoveryPhase = .scanning
-            globalDetailMessage = discoveredCandidates.count == 1
-                ? "Found one nearby Ember mug."
-                : "Found \(discoveredCandidates.count) nearby Ember mugs."
-            publishGlobalSnapshot()
+            scheduleDiscoveryPublication()
         case .manual:
             switch discoveredCandidates.count {
             case 0:
@@ -664,7 +920,12 @@ final class EmberMugBluetoothCoordinator: NSObject {
     }
 
     private func snapshotDiscoveredMugs() -> [BluetoothRuntimeSnapshot.DiscoveredMug] {
-        discoveredCandidates.values
+        publishedDiscoveredMugs
+    }
+
+    private func refreshDiscoveredMugsSnapshot() {
+        discoveredCandidates.expire()
+        publishedDiscoveredMugs = discoveredCandidates.values
             .map {
                 BluetoothRuntimeSnapshot.DiscoveredMug(
                     identifier: $0.peripheral.identifier.uuidString,
@@ -676,14 +937,66 @@ final class EmberMugBluetoothCoordinator: NSObject {
             }
             .sorted { lhs, rhs in
                 if lhs.rssi == rhs.rssi {
+                    if lhs.name == rhs.name { return lhs.identifier < rhs.identifier }
                     return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
                 }
                 return lhs.rssi > rhs.rssi
             }
     }
 
-    private func publishSnapshot(for session: MugPeripheralSession?) {
+    private func scheduleDiscoveryPublication() {
+        guard discoveryPublicationWorkItem == nil else { return }
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.activeScanMode?.isContinuousDiscovery == true else { return }
+            self.discoveryPublicationWorkItem = nil
+            self.refreshDiscoveredMugsSnapshot()
+            self.globalDetailMessage = self.discoveredCandidates.count == 1
+                ? "Found one nearby Ember mug."
+                : "Found \(self.discoveredCandidates.count) nearby Ember mugs."
+            self.publishGlobalSnapshot()
+        }
+        discoveryPublicationWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
+    }
+
+    private func scheduleDiscoveryExpiry() {
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.activeScanMode?.isContinuousDiscovery == true else { return }
+            self.discoveryExpiryWorkItem = nil
+            if self.discoveredCandidates.expire() {
+                self.scheduleDiscoveryPublication()
+            }
+            self.scheduleDiscoveryExpiry()
+        }
+        discoveryExpiryWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: workItem)
+    }
+
+    private func clearDiscoveryCandidates() {
+        discoveryPublicationWorkItem?.cancel()
+        discoveryPublicationWorkItem = nil
+        discoveryExpiryWorkItem?.cancel()
+        discoveryExpiryWorkItem = nil
+        discoveredCandidates.removeAll()
+        publishedDiscoveredMugs = []
+    }
+
+    private func publishSnapshot(for session: MugPeripheralSession?, coalescingReadings: Bool = false) {
         guard let session else { return }
+        synchronizeConnectionMonitoring()
+
+        if coalescingReadings {
+            guard readingPublicationByMug[session.identifier] == nil else { return }
+            let workItem = DispatchWorkItem { [weak self, weak session] in
+                guard let self, let session, self.sessionsByIdentifier[session.identifier] === session else { return }
+                self.readingPublicationByMug[session.identifier] = nil
+                self.publishSnapshot(for: session)
+            }
+            readingPublicationByMug[session.identifier] = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+            return
+        }
+        readingPublicationByMug.removeValue(forKey: session.identifier)?.cancel()
 
         onSnapshot(
             BluetoothRuntimeSnapshot(
@@ -720,6 +1033,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
     }
 
     private func publishGlobalSnapshot() {
+        synchronizeConnectionMonitoring()
         onSnapshot(
             BluetoothRuntimeSnapshot(
                 authorization: Self.authorizationStatus(from: CBCentralManager.authorization),
@@ -759,6 +1073,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
         case EmberGATT.currentTemperature:
             if let data = characteristic.value, let value = Self.temperature(from: data) {
                 session.currentTemperatureCelsius = value
+                session.readingHealth.record(characteristic.uuid)
                 session.lastReadingAt = Date()
                 AppLog.bluetooth.debug("Updated current temperature to \(value, format: .fixed(precision: 1)) C.")
             }
@@ -771,6 +1086,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
         case EmberGATT.contentsLevel:
             if let data = characteristic.value, let level = Self.contentsLevel(from: data) {
                 session.contentsLevelRaw = level
+                session.readingHealth.record(characteristic.uuid)
                 if session.isEmpty == nil {
                     if level <= 11 {
                         session.isEmpty = true
@@ -784,6 +1100,7 @@ final class EmberMugBluetoothCoordinator: NSObject {
         case EmberGATT.liquidState:
             if let data = characteristic.value, let liquidState = Self.liquidState(from: data) {
                 session.liquidStateDescription = liquidState.description
+                session.readingHealth.record(characteristic.uuid)
                 session.isEmpty = liquidState.impliesEmpty
                 session.lastReadingAt = Date()
                 AppLog.bluetooth.debug("Updated liquid state to \(liquidState.description, privacy: .private).")
@@ -847,12 +1164,13 @@ final class EmberMugBluetoothCoordinator: NSObject {
         }
 
         if characteristic.uuid == EmberGATT.pushEvent {
-            publishSnapshot(for: session)
+            publishSnapshot(for: session, coalescingReadings: true)
         }
     }
 
     private func requestRead(for characteristic: CBCharacteristic?, session: MugPeripheralSession) {
         guard let characteristic, characteristic.properties.contains(.read) else { return }
+        guard session.pushReadBudget.admit(characteristic.uuid, uptime: ProcessInfo.processInfo.systemUptime) else { return }
         session.peripheral.readValue(for: characteristic)
     }
 
@@ -918,21 +1236,6 @@ final class EmberMugBluetoothCoordinator: NSObject {
         default:
             break
         }
-    }
-
-    private func startPollingIfNeeded(for session: MugPeripheralSession) {
-        guard session.refreshTimer == nil else { return }
-        guard session.phase == .connected else { return }
-        guard session.hasReadableCharacteristics else { return }
-
-        let sessionIdentifier = session.identifier.uuidString
-        let timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.refreshReadings(for: sessionIdentifier, trigger: .automatic)
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        session.refreshTimer = timer
     }
 
     private func schedulePostWriteRefresh(for session: MugPeripheralSession) {
@@ -1040,6 +1343,10 @@ final class EmberMugBluetoothCoordinator: NSObject {
 
 extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        if central.state != .poweredOn {
+            clearDiscoveryCandidates()
+            activeScanMode = nil
+        }
         switch central.state {
         case .unknown:
             globalDiscoveryPhase = .starting
@@ -1085,7 +1392,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         case .poweredOn:
             globalDetailMessage = "Bluetooth is ready. Swiftea will look for mugs set to reconnect automatically now."
             AppLog.bluetooth.info("Bluetooth hardware is powered on.")
-            recoverExistingConnectionsAndAutoConnectIfPossible()
+            maintainConnections()
             return
         @unknown default:
             globalDiscoveryPhase = .failed
@@ -1102,8 +1409,9 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
+        guard let activeScanMode else { return }
         let trust = EmberAdvertisementParser.trust(from: advertisementData, peripheralName: peripheral.name)
-        let isSavedTarget = activeScanMode?.allowsNameOnlyMatch(for: peripheral.identifier) ?? false
+        let isSavedTarget = activeScanMode.allowsNameOnlyMatch(for: peripheral.identifier)
 
         guard Self.shouldRegisterDiscoveredCandidate(trust: trust, isSavedTarget: isSavedTarget) else {
             if trust == .nameOnly {
@@ -1112,7 +1420,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
             return
         }
 
-        if let activeScanMode, !activeScanMode.allows(peripheral.identifier) {
+        if !activeScanMode.allows(peripheral.identifier) {
             AppLog.bluetooth.debug("Ignoring non-target Ember candidate during saved-mug scan.")
             return
         }
@@ -1135,7 +1443,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
             finish: advertisedFinish ?? discoveredCandidates[peripheral.identifier]?.finish,
             size: advertisedSize ?? discoveredCandidates[peripheral.identifier]?.size
         )
-        discoveredCandidates[peripheral.identifier] = candidate
+        discoveredCandidates.register(candidate, identifier: peripheral.identifier)
         evaluateDiscoveryStateAfterRegisteringCandidate(candidate)
     }
 
@@ -1155,6 +1463,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         session.finish = discoveredCandidates[peripheral.identifier]?.finish ?? session.finish
         session.size = discoveredCandidates[peripheral.identifier]?.size ?? session.size
         session.lastConnectedAt = Date()
+        session.readingHealth = MugReadingHealth()
         session.detailMessage = "Connected to \(session.name). Reading live mug data."
         sessionsByIdentifier[peripheral.identifier] = session
         AppLog.bluetooth.info("Connected to mug \(session.name, privacy: .private). Discovering services.")
@@ -1189,17 +1498,61 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBCentralManagerDelegate
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: (any Error)?
     ) {
+        handleDisconnect(
+            peripheral,
+            isReconnecting: false,
+            error: error
+        )
+    }
+
+    func centralManager(
+        _ central: CBCentralManager,
+        didDisconnectPeripheral peripheral: CBPeripheral,
+        timestamp: CFAbsoluteTime,
+        isReconnecting: Bool,
+        error: (any Error)?
+    ) {
+        handleDisconnect(
+            peripheral,
+            isReconnecting: isReconnecting,
+            error: error
+        )
+    }
+
+    private func handleDisconnect(
+        _ peripheral: CBPeripheral,
+        isReconnecting: Bool,
+        error: (any Error)?
+    ) {
         let session = sessionsByIdentifier[peripheral.identifier]
         session?.cancelConnectionTimeout()
         session?.resetLiveReadState(keepConnectionState: false)
-        session?.phase = .disconnected
-        session?.detailMessage = "Connection lost. You can retry the scan whenever you are ready."
+        let shouldKeepReconnecting = isReconnecting
+            && autoConnectPeripheralIdentifiers.contains(peripheral.identifier)
+
+        if isReconnecting, !shouldKeepReconnecting {
+            central?.cancelPeripheralConnection(peripheral)
+        }
+
+        session?.phase = shouldKeepReconnecting ? .connecting : .disconnected
+        session?.detailMessage = shouldKeepReconnecting
+            ? "Connection paused. Swiftea will reconnect when the mug is available."
+            : "Connection lost. You can retry the scan whenever you are ready."
         if let error {
-            AppLog.bluetooth.notice("Disconnected from mug \(peripheral.name ?? "unknown", privacy: .private): \(error.localizedDescription, privacy: .private)")
+            AppLog.bluetooth.notice(
+                "Disconnected from mug \(peripheral.name ?? "unknown", privacy: .private); system reconnecting: \(shouldKeepReconnecting, privacy: .public); error: \(error.localizedDescription, privacy: .private)"
+            )
         } else {
-            AppLog.bluetooth.notice("Disconnected from mug \(peripheral.name ?? "unknown", privacy: .private).")
+            AppLog.bluetooth.notice(
+                "Disconnected from mug \(peripheral.name ?? "unknown", privacy: .private); system reconnecting: \(shouldKeepReconnecting, privacy: .public)."
+            )
         }
         publishSnapshot(for: session)
+
+        if !shouldKeepReconnecting,
+           autoConnectPeripheralIdentifiers.contains(peripheral.identifier) {
+            recoverExistingConnectionsAndAutoConnectIfPossible()
+        }
     }
 }
 
@@ -1251,7 +1604,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBPeripheralDelegate {
             register(characteristic: characteristic, for: session)
 
             if characteristic.properties.contains(.read) {
-                peripheral.readValue(for: characteristic)
+                session.peripheral.readValue(for: characteristic)
             }
 
             if characteristic.properties.contains(.notify) {
@@ -1259,7 +1612,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBPeripheralDelegate {
             }
         }
 
-        startPollingIfNeeded(for: session)
+        synchronizeConnectionMonitoring()
         session.detailMessage = "Connected. Waiting for the first live readings from your mug."
         publishSnapshot(for: session)
     }
@@ -1270,7 +1623,7 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBPeripheralDelegate {
         guard error == nil else {
             session.detailMessage = "Connected, but one of the mug readings failed to update."
             AppLog.bluetooth.error("A mug characteristic value update failed.")
-            publishSnapshot(for: session)
+            publishSnapshot(for: session, coalescingReadings: true)
             return
         }
 
@@ -1278,12 +1631,12 @@ extension EmberMugBluetoothCoordinator: @preconcurrency CBPeripheralDelegate {
         if session.hasDashboardReading {
             session.cancelConnectionTimeout()
             session.phase = .connected
-            startPollingIfNeeded(for: session)
+            synchronizeConnectionMonitoring()
             session.detailMessage = "Connected. Live mug values are updating."
         } else {
             session.detailMessage = "Connected. Waiting for the first live readings from your mug."
         }
-        publishSnapshot(for: session)
+        publishSnapshot(for: session, coalescingReadings: true)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: (any Error)?) {

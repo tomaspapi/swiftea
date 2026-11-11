@@ -434,6 +434,11 @@ final class AppModel {
         let isHeatingOn: Bool
     }
 
+    private struct PendingHistoryObservation {
+        let state: LoggedMugHistoryState
+        let kindOverride: MugHistoryEventKind?
+    }
+
     private struct TrustedBatteryReading {
         let percent: Int
         let timestamp: Date
@@ -468,7 +473,7 @@ final class AppModel {
         }
     }
 
-    private struct TargetTemperatureNotificationState {
+    private struct TargetTemperatureAlertState {
         enum ApproachSide {
             case below
             case above
@@ -515,15 +520,24 @@ final class AppModel {
     @ObservationIgnored private var sideEffectMugIdentifierOverride: String?
     @ObservationIgnored private var lastLoggedMenuBarInsertionState: Bool?
     @ObservationIgnored private let heatingToggleSoundPlayer: any HeatingToggleSoundPlaying
+    @ObservationIgnored private let targetTemperatureSoundPlayer: any TargetTemperatureSoundPlaying
     @ObservationIgnored private var lastLoggedHistoryStateByMug: [String: LoggedMugHistoryState] = [:]
+    @ObservationIgnored private var historyRecordingBudgetByMug: [String: MugHistoryRecordingBudget] = [:]
+    @ObservationIgnored private var historyGapMugIdentifiers: Set<String> = []
+    @ObservationIgnored private var pendingHistoryObservationByMug: [String: PendingHistoryObservation] = [:]
+    @ObservationIgnored private var historyObservationTaskByMug: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var historyWriteBuffer = MugHistoryWriteBuffer()
+    @ObservationIgnored private var historyWriterTask: Task<Void, Never>?
+    @ObservationIgnored private var historyEventCountByMug: [String?: Int] = [:]
     @ObservationIgnored private var lastTrustedBatteryReadingByMug: [String: TrustedBatteryReading] = [:]
     @ObservationIgnored private var pendingBatteryReadingByMug: [String: PendingBatteryReading] = [:]
     @ObservationIgnored private var lastProcessedBatteryReadingAtByMug: [String: Date] = [:]
-    @ObservationIgnored private var targetTemperatureNotificationStateByMug: [String: TargetTemperatureNotificationState] = [:]
+    @ObservationIgnored private var targetTemperatureAlertStateByMug: [String: TargetTemperatureAlertState] = [:]
     @ObservationIgnored private var batteryNotificationStateByMug: [String: BatteryNotificationState] = [:]
     @ObservationIgnored private var isDiscoveryWindowOpen = false
-    @ObservationIgnored private var pendingDiscoveryConnectionIdentifiers: Set<String> = []
+    @ObservationIgnored private var pendingDiscoveryConnectionStartedAt: [String: Date] = [:]
     @ObservationIgnored private var isRestoringSavedPreferences = false
+    @ObservationIgnored private let forceOnboardingPresentation: Bool
     @ObservationIgnored private let startsRuntimeWhenLegallyAuthorized: Bool
     @ObservationIgnored private var hasStartedLegallyAuthorizedRuntime = false
     @ObservationIgnored private var didPresentOnboardingThisSession = false
@@ -533,7 +547,7 @@ final class AppModel {
     private static let immediateBatteryDeltaPercent = 2
     private static let batteryRecalibrationStableTolerancePercent = 1
     private static let batteryRecalibrationMinimumSampleCount = 3
-    private static let batteryRecalibrationMinimumDuration: TimeInterval = 90
+    private static let batteryRecalibrationMinimumDuration: TimeInterval = 30
     private static let chargingBatteryIncreasePercentPerMinute = 1.25
     private static let unpluggedBatteryIncreasePercentPerMinute = 0.25
     private static let chargingBatteryDropPercentPerMinute = 0.5
@@ -679,8 +693,8 @@ final class AppModel {
             guard oldValue != targetTemperatureNotificationsEnabled else { return }
             preferences.set(targetTemperatureNotificationsEnabled, forKey: AppPreferencesKey.targetTemperatureNotificationsEnabled)
 
-            if !targetTemperatureNotificationsEnabled {
-                targetTemperatureNotificationStateByMug.removeAll()
+            if !targetTemperatureNotificationsEnabled, !soundsEnabled {
+                targetTemperatureAlertStateByMug.removeAll()
             }
         }
     }
@@ -700,6 +714,10 @@ final class AppModel {
         didSet {
             guard oldValue != soundsEnabled else { return }
             preferences.set(soundsEnabled, forKey: AppPreferencesKey.soundsEnabled)
+
+            if !soundsEnabled, !targetTemperatureNotificationsEnabled {
+                targetTemperatureAlertStateByMug.removeAll()
+            }
         }
     }
     var isRequestingNotificationPermission = false
@@ -842,6 +860,7 @@ final class AppModel {
         startBluetooth: Bool = true,
         preferences: AppPreferencesStore = UserDefaultsAppPreferencesStore.shared,
         heatingToggleSoundPlayer: (any HeatingToggleSoundPlaying)? = nil,
+        targetTemperatureSoundPlayer: (any TargetTemperatureSoundPlaying)? = nil,
         targetTemperatureNotifier: (any TargetTemperatureNotificationDelivering)? = nil,
         idleSleepPreventionManager: (any IdleSleepPreventionManaging)? = nil,
         loginItemManager: (any LoginItemManaging)? = nil,
@@ -851,6 +870,7 @@ final class AppModel {
         appVersionIdentifier: String = AppVersion.currentIdentifier(),
         changelogMarkdown: String = PublishedChangelog.bundledMarkdown(),
         systemPreferenceDefaults: SystemPreferenceDefaults? = nil,
+        forceOnboardingPresentation: Bool = false,
         nowProvider: @escaping () -> Date = Date.init
     ) {
         self.preferences = preferences
@@ -858,10 +878,13 @@ final class AppModel {
         self.appSessionID = appSessionID
         self.appVersionIdentifier = appVersionIdentifier
         self.changelogMarkdown = changelogMarkdown
+        self.forceOnboardingPresentation = forceOnboardingPresentation
         self.startsRuntimeWhenLegallyAuthorized = startBluetooth
         self.nowProvider = nowProvider
         self.heatingToggleSoundPlayer = heatingToggleSoundPlayer
             ?? (startBluetooth ? NativeHeatingToggleSoundPlayer.shared : SilentHeatingToggleSoundPlayer.shared)
+        self.targetTemperatureSoundPlayer = targetTemperatureSoundPlayer
+            ?? (startBluetooth ? NativeTargetTemperatureSoundPlayer.shared : SilentTargetTemperatureSoundPlayer.shared)
         self.targetTemperatureNotifier = targetTemperatureNotifier
             ?? (startBluetooth ? NativeTargetTemperatureNotificationCenter.shared : SilentTargetTemperatureNotificationCenter.shared)
         self.idleSleepPreventionManager = idleSleepPreventionManager
@@ -894,8 +917,21 @@ final class AppModel {
         }
     }
 
-    static func launchModel() -> AppModel {
-        AppModel()
+    static func launchModel(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> AppModel {
+        let shouldStartBluetooth = true
+
+        let forceOnboardingPresentation = false
+
+        let model = AppModel(
+            startBluetooth: shouldStartBluetooth,
+            forceOnboardingPresentation: forceOnboardingPresentation
+        )
+
+
+        return model
     }
 
     var canAdjustTemperature: Bool {
@@ -903,6 +939,7 @@ final class AppModel {
     }
 
     func consumeUpdateChangelogPresentation() -> Bool {
+        guard !AppVersion.isPrereleaseIdentifier(appVersionIdentifier) else { return false }
         guard shouldPresentUpdateChangelog else { return false }
 
         shouldPresentUpdateChangelog = false
@@ -1033,6 +1070,7 @@ final class AppModel {
                 shouldBreakSegment = connected && (
                     !wasConnected
                         || event.kind == .batteryRecalibrated
+                        || event.kind == .recordingGap
                         || Self.shouldBreakLegacyBatterySegment(
                             previous: previousBatterySample,
                             nextPercent: batteryPercent,
@@ -1040,7 +1078,7 @@ final class AppModel {
                         )
                 )
             case .temperature:
-                shouldBreakSegment = connected && (!wasConnected || (heatingOn && !wasHeatingOn))
+                shouldBreakSegment = connected && (!wasConnected || (heatingOn && !wasHeatingOn) || event.kind == .recordingGap)
             }
 
             if shouldBreakSegment || currentSegmentID == nil {
@@ -1641,6 +1679,9 @@ final class AppModel {
     }
 
     func chooseDiscoveredMug(_ mug: BluetoothRuntimeSnapshot.DiscoveredMug) {
+        if !isSavedMugIdentifier(mug.identifier) {
+            pendingDiscoveryConnectionStartedAt[mug.identifier] = nowProvider()
+        }
         selectMugIdentifier(mug.identifier, shouldPersistLegacyPreferred: true)
         addSavedMugIdentifier(mug.identifier)
         addAutoConnectMugIdentifier(mug.identifier)
@@ -1660,7 +1701,7 @@ final class AppModel {
         guard !isDiscoveryExcludedMug(mug) else { return }
 
         let shouldSelectMug = connectedSidebarMugs.isEmpty
-        pendingDiscoveryConnectionIdentifiers.insert(mug.identifier)
+        pendingDiscoveryConnectionStartedAt[mug.identifier] = nowProvider()
         rawDiscoveredMugs.removeAll { $0.identifier == mug.identifier }
         discoveredMugs.removeAll { $0.identifier == mug.identifier }
         addSavedMugIdentifier(mug.identifier)
@@ -1687,6 +1728,7 @@ final class AppModel {
         rawDiscoveredMugs = []
         discoveredMugs = []
     }
+
 
     func forgetSavedMug() {
         guard let identifier = selectedMugIdentifier ?? preferredPeripheralIdentifier else { return }
@@ -1742,6 +1784,8 @@ final class AppModel {
     func forgetSidebarMug(identifier: String) {
         guard allSidebarMugIdentifiers.contains(identifier) else { return }
 
+        cancelPendingHistoryObservation(for: identifier)
+        historyRecordingBudgetByMug.removeValue(forKey: identifier)
         bluetoothCoordinator?.forgetMug(identifier: identifier)
         removeAutoConnectMugIdentifier(identifier)
         clearManualDisconnectSuppression(for: identifier)
@@ -2087,6 +2131,9 @@ final class AppModel {
 
     func apply(snapshot: BluetoothRuntimeSnapshot) {
         let snapshotReceivedAt = nowProvider()
+        pendingDiscoveryConnectionStartedAt = pendingDiscoveryConnectionStartedAt.filter {
+            snapshotReceivedAt.timeIntervalSince($0.value) < 60
+        }
 
         guard let mugIdentifier = snapshot.activePeripheralIdentifier else {
             applyGlobalSnapshot(snapshot, timestamp: snapshotReceivedAt)
@@ -2096,16 +2143,15 @@ final class AppModel {
         ensureMugSession(identifier: mugIdentifier, snapshot: snapshot)
 
         if let existingIdentifier = duplicateMugIdentifier(forSerialNumber: snapshot.serialNumber, excluding: mugIdentifier) {
-            if pendingDiscoveryConnectionIdentifiers.contains(mugIdentifier) {
+            if isProvisionalDiscoveryMug(mugIdentifier), !isProvisionalDiscoveryMug(existingIdentifier) {
                 discardDuplicateMugSession(identifier: mugIdentifier, duplicateOf: existingIdentifier)
                 return
             }
 
-            if pendingDiscoveryConnectionIdentifiers.contains(existingIdentifier) {
+            if isProvisionalDiscoveryMug(existingIdentifier), !isProvisionalDiscoveryMug(mugIdentifier) {
                 discardDuplicateMugSession(identifier: existingIdentifier, duplicateOf: mugIdentifier)
             } else {
-                discardDuplicateMugSession(identifier: mugIdentifier, duplicateOf: existingIdentifier)
-                return
+                AppLog.bluetooth.notice("Conflicting mug serials retained as separate device identities.")
             }
         }
 
@@ -2119,7 +2165,7 @@ final class AppModel {
         sideEffectMugIdentifierOverride = mugIdentifier
         loadMugSessionState(identifier: mugIdentifier)
         applySingleMugSnapshot(snapshot, snapshotReceivedAt: snapshotReceivedAt)
-        evaluateTargetTemperatureNotification(
+        evaluateTargetTemperatureAlert(
             mugIdentifier: mugIdentifier,
             isConnected: snapshot.discoveryPhase == .connected
         )
@@ -2129,6 +2175,7 @@ final class AppModel {
         )
         saveCurrentStateToMugSession(identifier: mugIdentifier)
         sideEffectMugIdentifierOverride = nil
+        finishDiscoveryIdentityValidationIfPossible(for: mugIdentifier)
 
         selectConnectedDashboardMugIfNeeded()
         restoreSelectedMugState()
@@ -2421,6 +2468,7 @@ final class AppModel {
         return model
     }
 
+
     private static func previewChartEndDate() -> Date {
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
@@ -2559,6 +2607,7 @@ final class AppModel {
     }
 
     private func removeRuntimeState(for identifier: String) {
+        pendingDiscoveryConnectionStartedAt.removeValue(forKey: identifier)
         pendingHeatingTransitionByMug.removeValue(forKey: identifier)
         localHeatingIntentByMug.removeValue(forKey: identifier)
         pendingStandaloneHeatingRearmTargetByMug.removeValue(forKey: identifier)
@@ -2870,7 +2919,7 @@ final class AppModel {
             .union(autoConnectMugIdentifiers)
             .union(savedMugNamesByIdentifier.keys)
             .union(mugSessionsByIdentifier.keys)
-            .union(pendingDiscoveryConnectionIdentifiers)
+            .union(pendingDiscoveryConnectionStartedAt.keys)
             .union([selectedMugIdentifier, activePeripheralIdentifier, preferredPeripheralIdentifier].compactMap { $0 })
     }
 
@@ -2902,15 +2951,44 @@ final class AppModel {
     private func duplicateMugIdentifier(forSerialNumber serialNumber: String?, excluding identifier: String) -> String? {
         guard let serialNumber, !serialNumber.isEmpty else { return nil }
 
-        return mugSessionsByIdentifier.first { candidateIdentifier, session in
+        return mugSessionsByIdentifier.filter { candidateIdentifier, session in
             candidateIdentifier != identifier && session.deviceSerialNumber == serialNumber
-        }?.key
+        }.keys.sorted { lhs, rhs in
+            if isProvisionalDiscoveryMug(lhs) != isProvisionalDiscoveryMug(rhs) {
+                return !isProvisionalDiscoveryMug(lhs)
+            }
+            return lhs < rhs
+        }.first
+    }
+
+    private func isProvisionalDiscoveryMug(_ identifier: String) -> Bool {
+        guard let startedAt = pendingDiscoveryConnectionStartedAt[identifier] else { return false }
+        return nowProvider().timeIntervalSince(startedAt) < 60
+    }
+
+    private func finishDiscoveryIdentityValidationIfPossible(for identifier: String) {
+        guard isProvisionalDiscoveryMug(identifier), let session = mugSessionsByIdentifier[identifier] else { return }
+        guard session.connectionState == .connected else {
+            if session.connectionState == .disconnected || session.connectionState == .error {
+                pendingDiscoveryConnectionStartedAt.removeValue(forKey: identifier)
+            }
+            return
+        }
+        guard let serial = session.deviceSerialNumber, !serial.isEmpty else { return }
+        guard duplicateMugIdentifier(forSerialNumber: serial, excluding: identifier) == nil else { return }
+        let otherLiveSessions = mugSessionsByIdentifier.values.filter {
+            $0.identifier != identifier && ($0.connectionState == .connected || $0.connectionState == .connecting)
+        }
+        guard otherLiveSessions.allSatisfy({ $0.deviceSerialNumber?.isEmpty == false }) else { return }
+        pendingDiscoveryConnectionStartedAt.removeValue(forKey: identifier)
     }
 
     private func discardDuplicateMugSession(identifier: String, duplicateOf existingIdentifier: String) {
+        // Only an unconfirmed discovery attempt may lose its newly created entry.
+        guard isProvisionalDiscoveryMug(identifier), !isProvisionalDiscoveryMug(existingIdentifier) else { return }
         removeAutoConnectMugIdentifier(identifier)
         removeSavedMugIdentifier(identifier)
-        pendingDiscoveryConnectionIdentifiers.remove(identifier)
+        pendingDiscoveryConnectionStartedAt.removeValue(forKey: identifier)
         rawDiscoveredMugs.removeAll { $0.identifier == identifier }
         discoveredMugs.removeAll { $0.identifier == identifier }
         mugSessionsByIdentifier.removeValue(forKey: identifier)
@@ -3146,6 +3224,8 @@ final class AppModel {
 
     private func restoreUpdateChangelogPresentationState() {
         guard !appVersionIdentifier.isEmpty else { return }
+        // Testing a prerelease must not consume the final release's notes.
+        guard !AppVersion.isPrereleaseIdentifier(appVersionIdentifier) else { return }
 
         let currentMarketingVersion = AppVersion.marketingVersion(from: appVersionIdentifier)
 
@@ -3175,6 +3255,12 @@ final class AppModel {
     }
 
     private func restoreOnboardingPresentationState() {
+        if forceOnboardingPresentation {
+            shouldStartOnboardingAtLegalAgreement = false
+            shouldPresentOnboarding = true
+            return
+        }
+
         if !hasAcceptedCurrentLegalDocuments {
             shouldStartOnboardingAtLegalAgreement = hasExistingInstallPreferencesFootprint()
                 || preferences.bool(forKey: AppPreferencesKey.hasCompletedOnboarding) == true
@@ -3446,12 +3532,15 @@ final class AppModel {
 
     private func queueTargetTemperatureCommit() {
         cancelPendingTargetTemperatureCommit()
+        cancelPendingTemperatureControlCommit()
+        guard let identifier = transientMugIdentifier, canAdjustTemperature else { return }
+        let target = targetTemperatureDraftCelsius
 
-        pendingTargetTemperatureCommitTask = Task { @MainActor [weak self] in
+        pendingTargetTemperatureCommitTaskByMug[identifier] = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard let self, !Task.isCancelled else { return }
-            self.pendingTargetTemperatureCommitTask = nil
-            self.commitTargetTemperatureDraft()
+            self.pendingTargetTemperatureCommitTaskByMug[identifier] = nil
+            self.commitQueuedTemperatureChange(target, for: identifier, requiresEmptyMugConfirmation: true)
         }
     }
 
@@ -3461,13 +3550,48 @@ final class AppModel {
     }
 
     private func queueTemperatureControlCommit() {
+        cancelPendingTargetTemperatureCommit()
         cancelPendingTemperatureControlCommit()
+        guard let identifier = transientMugIdentifier, canAdjustTemperature else { return }
+        let target = isTemperatureControlOff ? nil : targetTemperatureDraftCelsius
 
-        pendingTemperatureControlCommitTask = Task { @MainActor [weak self] in
+        pendingTemperatureControlCommitTaskByMug[identifier] = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard let self, !Task.isCancelled else { return }
-            self.pendingTemperatureControlCommitTask = nil
-            self.commitTemperatureControlState()
+            self.pendingTemperatureControlCommitTaskByMug[identifier] = nil
+            self.commitQueuedTemperatureChange(target, for: identifier, requiresEmptyMugConfirmation: false)
+        }
+    }
+
+    private func commitQueuedTemperatureChange(
+        _ target: Double?,
+        for identifier: String,
+        requiresEmptyMugConfirmation: Bool
+    ) {
+        guard
+            let session = mugSessionsByIdentifier[identifier],
+            session.connectionState == .connected,
+            session.activePeripheralIdentifier == identifier,
+            session.canWriteTargetTemperature
+        else { return }
+
+        // Execute against the originating session, never the selection at timer expiry.
+        sideEffectMugIdentifierOverride = identifier
+        loadMugSessionState(identifier: identifier)
+        defer {
+            saveCurrentStateToMugSession(identifier: identifier)
+            sideEffectMugIdentifierOverride = nil
+            restoreSelectedMugState()
+        }
+
+        if let target {
+            targetTemperatureDraftCelsius = target
+        }
+        if requiresEmptyMugConfirmation {
+            commitTargetTemperatureDraft()
+        } else {
+            setTemperatureControlStateLocally(isEnabled: target != nil)
+            commitTemperatureControlState()
         }
     }
 
@@ -3775,6 +3899,7 @@ final class AppModel {
                 Array(combinedEvents),
                 now: self.nowProvider()
             )
+            self.recountHistoryEvents()
             self.recordAppSessionStarted()
         }
     }
@@ -4005,7 +4130,11 @@ final class AppModel {
         )
 
         let previousState = lastLoggedHistoryStateByMug[mugIdentifier]
-        guard previousState != state else { return }
+        guard previousState != state || historyGapMugIdentifiers.contains(mugIdentifier) else {
+            // Keep the flush deadline so oscillating readings cannot create a task per update.
+            pendingHistoryObservationByMug.removeValue(forKey: mugIdentifier)
+            return
+        }
 
         guard
             previousState != nil
@@ -4015,8 +4144,6 @@ final class AppModel {
         else {
             return
         }
-
-        lastLoggedHistoryStateByMug[mugIdentifier] = state
 
         let kind: MugHistoryEventKind
         if previousState?.isConnected != state.isConnected {
@@ -4029,12 +4156,25 @@ final class AppModel {
             kind = .reading
         }
 
+        var budget = historyRecordingBudgetByMug[mugIdentifier] ?? MugHistoryRecordingBudget()
+        let isAdmitted = budget.admit(kind: kind, now: timestamp)
+        historyRecordingBudgetByMug[mugIdentifier] = budget
+        guard isAdmitted else {
+            if kind != .reading { historyGapMugIdentifiers.insert(mugIdentifier) }
+            pendingHistoryObservationByMug[mugIdentifier] = PendingHistoryObservation(state: state, kindOverride: kindOverride)
+            scheduleHistoryObservation(for: mugIdentifier)
+            return
+        }
+        cancelPendingHistoryObservation(for: mugIdentifier)
+        lastLoggedHistoryStateByMug[mugIdentifier] = state
+        let recordedKind = historyGapMugIdentifiers.remove(mugIdentifier) == nil ? kind : .recordingGap
+
         appendMugHistoryEvent(
             MugHistoryEvent(
                 timestamp: timestamp,
                 mugIdentifier: mugIdentifier,
                 appSessionID: appSessionID,
-                kind: kind,
+                kind: recordedKind,
                 batteryPercent: state.batteryPercent,
                 temperatureCelsius: state.temperatureCelsius,
                 isHeatingOn: state.isHeatingOn,
@@ -4044,18 +4184,63 @@ final class AppModel {
     }
 
     private func appendMugHistoryEvent(_ event: MugHistoryEvent) {
-        guard !mugHistoryEvents.contains(where: { $0.id == event.id }) else { return }
+        mugHistoryEvents.append(event)
+        historyEventCountByMug[event.mugIdentifier, default: 0] += 1
+        let limits = MugHistoryLimits.standard
+        if mugHistoryEvents.count > limits.maximumEvents
+            || historyEventCountByMug[event.mugIdentifier, default: 0] > limits.maximumEventsPerMug
+            || (mugHistoryEvents.first?.timestamp ?? event.timestamp) < nowProvider().addingTimeInterval(-MugHistoryRetention.duration) {
+            var compactedLimits = limits
+            compactedLimits.maximumEvents = limits.maximumEvents * 9 / 10
+            compactedLimits.maximumEventsPerMug = limits.maximumEventsPerMug * 9 / 10
+            mugHistoryEvents = MugHistoryRetention.pruned(mugHistoryEvents, now: nowProvider(), limits: compactedLimits)
+            recountHistoryEvents()
+        }
 
-        let eventCountBeforePruning = mugHistoryEvents.count + 1
-        let prunedEvents = MugHistoryRetention.pruned(mugHistoryEvents + [event], now: event.timestamp)
-        mugHistoryEvents = prunedEvents
-
-        Task { [mugHistoryStore, prunedEvents] in
-            try? await mugHistoryStore.append(event)
-
-            if prunedEvents.count < eventCountBeforePruning {
-                try? await mugHistoryStore.replaceEvents(prunedEvents)
+        historyWriteBuffer.enqueue(event)
+        guard historyWriterTask == nil else { return }
+        historyWriterTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while !self.historyWriteBuffer.isEmpty {
+                if self.historyWriteBuffer.takeReplacementRequest() {
+                    try? await self.mugHistoryStore.replaceEvents(self.mugHistoryEvents)
+                } else {
+                    for event in self.historyWriteBuffer.takeBatch() {
+                        try? await self.mugHistoryStore.append(event)
+                    }
+                }
             }
+            self.historyWriterTask = nil
+        }
+    }
+
+    private func recountHistoryEvents() {
+        historyEventCountByMug = mugHistoryEvents.reduce(into: [:]) { counts, event in
+            counts[event.mugIdentifier, default: 0] += 1
+        }
+    }
+
+    private func cancelPendingHistoryObservation(for identifier: String) {
+        pendingHistoryObservationByMug.removeValue(forKey: identifier)
+        historyObservationTaskByMug.removeValue(forKey: identifier)?.cancel()
+    }
+
+    private func scheduleHistoryObservation(for identifier: String) {
+        guard historyObservationTaskByMug[identifier] == nil else { return }
+        historyObservationTaskByMug[identifier] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(MugHistoryRecordingBudget.interval))
+            guard let self, !Task.isCancelled else { return }
+            self.historyObservationTaskByMug[identifier] = nil
+            guard let observation = self.pendingHistoryObservationByMug.removeValue(forKey: identifier) else { return }
+            self.recordHistoryIfNeeded(
+                mugIdentifier: identifier,
+                isConnected: observation.state.isConnected,
+                batteryLevel: observation.state.batteryPercent.map { Double($0) / 100 },
+                currentTemperatureCelsius: observation.state.temperatureCelsius,
+                isHeatingOn: observation.state.isHeatingOn,
+                timestamp: self.nowProvider(),
+                kindOverride: observation.kindOverride
+            )
         }
     }
 
@@ -4176,8 +4361,11 @@ final class AppModel {
         }
     }
 
-    private func evaluateTargetTemperatureNotification(mugIdentifier: String, isConnected: Bool) {
-        guard targetTemperatureNotificationsEnabled else { return }
+    private func evaluateTargetTemperatureAlert(mugIdentifier: String, isConnected: Bool) {
+        guard targetTemperatureNotificationsEnabled || soundsEnabled else {
+            targetTemperatureAlertStateByMug.removeValue(forKey: mugIdentifier)
+            return
+        }
 
         guard
             isConnected,
@@ -4185,7 +4373,7 @@ final class AppModel {
             isEmpty != true,
             let currentTemperatureCelsius
         else {
-            targetTemperatureNotificationStateByMug[mugIdentifier] = nil
+            targetTemperatureAlertStateByMug[mugIdentifier] = nil
             return
         }
 
@@ -4206,7 +4394,7 @@ final class AppModel {
             toIncrement: currentDisplayStep
         )
 
-        var state = targetTemperatureNotificationStateByMug[mugIdentifier] ?? TargetTemperatureNotificationState()
+        var state = targetTemperatureAlertStateByMug[mugIdentifier] ?? TargetTemperatureAlertState()
         if let armedTargetCelsius = state.armedTargetCelsius, abs(armedTargetCelsius - targetCelsius) > 0.05 {
             state.armedTargetCelsius = nil
             state.armedSide = nil
@@ -4235,21 +4423,21 @@ final class AppModel {
                     state.armedSide = .above
                 }
             }
-            targetTemperatureNotificationStateByMug[mugIdentifier] = state
+            targetTemperatureAlertStateByMug[mugIdentifier] = state
             return
         }
 
         guard
             state.notifiedTargetCelsius == nil
         else {
-            targetTemperatureNotificationStateByMug[mugIdentifier] = state
+            targetTemperatureAlertStateByMug[mugIdentifier] = state
             return
         }
 
         state.armedTargetCelsius = nil
         state.armedSide = nil
         state.notifiedTargetCelsius = targetCelsius
-        targetTemperatureNotificationStateByMug[mugIdentifier] = state
+        targetTemperatureAlertStateByMug[mugIdentifier] = state
 
         let mugName = deviceName
         let targetLabel = Self.formatTargetTemperatureValue(
@@ -4257,11 +4445,16 @@ final class AppModel {
             unit: temperatureUnitPreference,
             showsCelsiusDecimals: showsCelsiusDecimals
         )
-        Task { @MainActor [targetTemperatureNotifier] in
-            await targetTemperatureNotifier.deliverTargetReachedNotification(
-                mugName: mugName,
-                targetLabel: targetLabel
-            )
+        if soundsEnabled {
+            targetTemperatureSoundPlayer.playTargetTemperatureReachedSound()
+        }
+        if targetTemperatureNotificationsEnabled {
+            Task { @MainActor [targetTemperatureNotifier] in
+                await targetTemperatureNotifier.deliverTargetReachedNotification(
+                    mugName: mugName,
+                    targetLabel: targetLabel
+                )
+            }
         }
     }
 

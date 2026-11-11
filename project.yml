@@ -5,18 +5,19 @@ options:
   defaultConfig: Debug
   deploymentTarget:
     macOS: "26.0"
-  xcodeVersion: "26.0"
+  xcodeVersion: "27.0"
 
 packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle.git
-    from: 2.9.1
+    exactVersion: 2.10.0
 
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.tom.swiftea
-    MARKETING_VERSION: "0.4.1"
-    CURRENT_PROJECT_VERSION: "10"
+    MARKETING_VERSION: "0.4.2"
+    CURRENT_PROJECT_VERSION: "11"
+    SWIFTEA_PRERELEASE_LABEL: ""
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
     GENERATE_INFOPLIST_FILE: NO

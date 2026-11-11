@@ -1,6 +1,104 @@
 import CoreBluetooth
 import Foundation
 
+struct PushReadBudget {
+    private var lastRequestAt: [CBUUID: TimeInterval] = [:]
+
+    mutating func admit(_ characteristic: CBUUID, uptime: TimeInterval) -> Bool {
+        if let previous = lastRequestAt[characteristic], uptime - previous < 1 { return false }
+        lastRequestAt[characteristic] = uptime
+        return true
+    }
+}
+
+struct MugReadingHealth {
+    enum Action: Equatable {
+        case read
+        case reconnect
+    }
+
+    private let startedAt: TimeInterval
+    private var successfulReads: [CBUUID: TimeInterval] = [:]
+    private var staleProbeAt: TimeInterval?
+
+    init(uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        startedAt = uptime
+    }
+
+    mutating func record(_ characteristic: CBUUID, uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        successfulReads[characteristic] = uptime
+    }
+
+    mutating func action(requiredCharacteristics: [CBUUID], uptime: TimeInterval) -> Action {
+        let oldestRead = requiredCharacteristics.map { successfulReads[$0] ?? startedAt }.min() ?? uptime
+        guard uptime - oldestRead >= 90 else {
+            staleProbeAt = nil
+            return .read
+        }
+
+        // Give a resumed Mac a fresh read before replacing an unresponsive connection.
+        guard let staleProbeAt else {
+            staleProbeAt = uptime
+            return .read
+        }
+        return uptime - staleProbeAt >= 20 ? .reconnect : .read
+    }
+}
+
+@MainActor
+final class MugConnectionMonitor {
+    static let activityOptions: ProcessInfo.ActivityOptions = .userInitiatedAllowingIdleSystemSleep
+
+    private let interval: TimeInterval
+    private let onCheck: @MainActor () -> Void
+    private let beginActivity: (ProcessInfo.ActivityOptions) -> NSObjectProtocol
+    private let endActivity: (NSObjectProtocol) -> Void
+    private var timer: Timer?
+    private var activity: NSObjectProtocol?
+
+    init(
+        interval: TimeInterval = 20,
+        beginActivity: @escaping (ProcessInfo.ActivityOptions) -> NSObjectProtocol = {
+            ProcessInfo.processInfo.beginActivity(
+                options: $0,
+                reason: "Swiftea is monitoring mugs and waiting for saved mugs to become available."
+            )
+        },
+        endActivity: @escaping (NSObjectProtocol) -> Void = { ProcessInfo.processInfo.endActivity($0) },
+        onCheck: @escaping @MainActor () -> Void
+    ) {
+        self.interval = interval
+        self.beginActivity = beginActivity
+        self.endActivity = endActivity
+        self.onCheck = onCheck
+    }
+
+    isolated deinit {
+        timer?.invalidate()
+        if let activity { endActivity(activity) }
+    }
+
+    func setEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            guard timer == nil else { return }
+            activity = beginActivity(Self.activityOptions)
+            let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.onCheck() }
+            }
+            timer.tolerance = min(2, interval / 10)
+            self.timer = timer
+            RunLoop.main.add(timer, forMode: .common)
+        } else {
+            timer?.invalidate()
+            timer = nil
+            if let activity {
+                endActivity(activity)
+                self.activity = nil
+            }
+        }
+    }
+}
+
 @MainActor
 final class MugPeripheralSession {
     let identifier: UUID
@@ -20,8 +118,8 @@ final class MugPeripheralSession {
     var serialNumberCharacteristic: CBCharacteristic?
     var pushEventCharacteristic: CBCharacteristic?
 
-    var refreshTimer: Timer?
     var connectionTimeoutWorkItem: DispatchWorkItem?
+    var readingHealth = MugReadingHealth()
 
     var serialNumber: String?
     var currentTemperatureCelsius: Double?
@@ -46,6 +144,7 @@ final class MugPeripheralSession {
 
     var pendingTargetWriteCelsius: Double?
     var hasPendingTargetWrite = false
+    var pushReadBudget = PushReadBudget()
 
     init(
         peripheral: CBPeripheral,
@@ -94,7 +193,8 @@ final class MugPeripheralSession {
     }
 
     func resetLiveReadState(keepConnectionState: Bool) {
-        stopPolling()
+        readingHealth = MugReadingHealth()
+        pushReadBudget = PushReadBudget()
         currentTemperatureCharacteristic = nil
         targetTemperatureCharacteristic = nil
         contentsCharacteristic = nil
@@ -123,11 +223,6 @@ final class MugPeripheralSession {
         if !keepConnectionState {
             phase = .disconnected
         }
-    }
-
-    func stopPolling() {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
     }
 
     func cancelConnectionTimeout() {

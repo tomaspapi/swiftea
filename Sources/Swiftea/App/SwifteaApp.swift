@@ -30,6 +30,15 @@ struct SwifteaApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
 
+            CommandGroup(replacing: .appInfo) {
+                Button("About Swiftea") {
+                    NSApp.orderFrontStandardAboutPanel(options: [
+                        .applicationVersion: AppVersion.currentDisplayVersion(),
+                        .version: ""
+                    ])
+                }
+            }
+
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesCommand(updater: updateController.updater)
             }

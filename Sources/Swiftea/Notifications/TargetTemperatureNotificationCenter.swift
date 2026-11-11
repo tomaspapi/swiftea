@@ -44,7 +44,8 @@ final class NativeTargetTemperatureNotificationCenter: NSObject, TargetTemperatu
         await deliverNotification(
             identifierPrefix: "swiftea.target-temperature",
             mugName: mugName,
-            body: "Your drink is ready at \(targetLabel)"
+            body: "Your drink is ready at \(targetLabel)",
+            sound: nil
         )
     }
 
@@ -64,7 +65,12 @@ final class NativeTargetTemperatureNotificationCenter: NSObject, TargetTemperatu
         )
     }
 
-    private func deliverNotification(identifierPrefix: String, mugName: String, body: String) async {
+    private func deliverNotification(
+        identifierPrefix: String,
+        mugName: String,
+        body: String,
+        sound: UNNotificationSound? = .default
+    ) async {
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
             return
@@ -73,7 +79,7 @@ final class NativeTargetTemperatureNotificationCenter: NSObject, TargetTemperatu
         let content = UNMutableNotificationContent()
         content.title = mugName
         content.body = body
-        content.sound = .default
+        content.sound = sound
 
         let request = UNNotificationRequest(
             identifier: "\(identifierPrefix).\(UUID().uuidString)",

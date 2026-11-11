@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.4.2 — 2026-11-11
+
+- General compatibility improvements with macOS 27.
+- Added an optional sound when your mug reaches its target temperature.
+- Improved background monitoring and overnight reconnection without needing to open Swiftea.
+- Reduced the delay before confirmed battery changes appear.
+- Fixed temperature and heating changes sometimes being sent to the wrong mug when switching between mugs.
+- Fixed conflicting device information sometimes removing a saved mug.
+- Improved stability when nearby devices send excessive Bluetooth data.
+
 ## 0.4.1 — 2026-09-08
 
 - Added optional half-degree Celsius controls and readings with up to one decimal place.

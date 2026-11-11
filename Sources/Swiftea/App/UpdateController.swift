@@ -40,7 +40,7 @@ final class UpdateController {
     }
 
     var currentVersionDescription: String {
-        AppVersion.currentMarketingVersion(bundle: bundle)
+        AppVersion.currentDisplayVersion(bundle: bundle)
     }
 
     var automaticallyChecksForUpdates: Bool {

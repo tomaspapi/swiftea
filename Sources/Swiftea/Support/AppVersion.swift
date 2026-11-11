@@ -9,8 +9,15 @@ enum AppVersion {
         normalizedBundleString(kCFBundleVersionKey as String, bundle: bundle)
     }
 
-    static func currentIdentifier(bundle: Bundle = .main) -> String {
+    static func currentDisplayVersion(bundle: Bundle = .main) -> String {
         let version = currentMarketingVersion(bundle: bundle)
+        guard let label = normalizedBundleString("SwifteaPrereleaseLabel", bundle: bundle),
+              !label.hasPrefix("$(") else { return version }
+        return "\(version) \(label)"
+    }
+
+    static func currentIdentifier(bundle: Bundle = .main) -> String {
+        let version = currentDisplayVersion(bundle: bundle)
         guard
             let build = currentBuildNumber(bundle: bundle),
             build != version
@@ -19,6 +26,14 @@ enum AppVersion {
         }
 
         return "\(version) (\(build))"
+    }
+
+    static func isPrereleaseIdentifier(_ identifier: String) -> Bool {
+        let parts = identifier.split(whereSeparator: \.isWhitespace)
+        guard parts.count >= 3,
+              ["alpha", "beta", "rc"].contains(String(parts[1])),
+              let iteration = Int(parts[2]), iteration > 0 else { return false }
+        return true
     }
 
     static func marketingVersion(from identifier: String) -> String {
